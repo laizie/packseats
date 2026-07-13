@@ -2,19 +2,18 @@
 
 ## What this is
 
-PackSeats is a personal watcher that notifies me when a seat opens in an NC State class section. It polls the public NC State class search (`webappprd.acs.ncsu.edu/php/coursecat/`), parses seat availability, and pings me when a watched section frees up. See PRD.md for full scope.
+PackSeats is a personal watcher that notifies me when a seat opens in an NC State class section, plus a local schedule-planner UI for finding classes that fit around my current schedule or replace a specific class. It polls the public NC State class search (`webappprd.acs.ncsu.edu/php/coursecat/`), parses seat availability, and pings me when a watched section frees up. See PRD.md for full scope and NOTES.md for the verified request/response format.
 
 ## Current status
 
-Pre-build, Phase 0. The class-search request has been fully reverse-engineered and verified — endpoint, minimal params, term-code scheme, and response format are documented in NOTES.md. Remaining Phase 0 decisions: language, notification channel, hosting. Nothing is scaffolded yet.
+Pre-build, end of Phase 0. The class-search request is fully reverse-engineered and verified (NOTES.md). Language, notifications, and UI are locked; hosting is the last open decision. Nothing is scaffolded yet.
 
 ## Tech stack
 
-To be locked in Phase 0. Leaning Python for the scrape-and-poll core, but not decided. Fill this in once chosen:
-
-- Language / runtime: TBD
-- HTTP + parsing: TBD (e.g. requests + BeautifulSoup, or fetch + a parser)
-- Notification: TBD (Telegram bot / ntfy / Pushover / Twilio / email)
+- Language / runtime: Python 3
+- HTTP + parsing: requests + BeautifulSoup (response is JSON-wrapped HTML — see NOTES.md)
+- Notification: Telegram bot (primary, multi-user-ready) + Pushover (my account only, emergency priority for DND-busting)
+- UI: Flask, single-page local web app (weekly schedule grid + search)
 - Scheduling / host: TBD (GitHub Actions cron / always-on host)
 - State storage: small JSON file or SQLite, no server
 

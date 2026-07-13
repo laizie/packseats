@@ -4,9 +4,11 @@ A personal watcher that pings me when a seat opens up in an NC State class secti
 
 It polls the **public** NC State class search (`webappprd.acs.ncsu.edu/php/coursecat/`), parses seat availability, and fires a notification when a watched section flips from full to open. No login, no MyPack, no SSO — public catalog only.
 
+Alongside the watcher, a local Flask UI lets me lay my current schedule on a week grid, search for classes that fit around it, and find replacements for a specific class.
+
 ## Status
 
-**Phase 0 — pre-build.** Core decisions (language, notification channel, hosting) are still open, and the class-search request structure still needs to be reverse-engineered from the browser Network tab. See [PRD.md](PRD.md) for the full plan and [CLAUDE.md](CLAUDE.md) for working conventions.
+**End of Phase 0 — pre-build.** The class-search request is reverse-engineered and verified (see [NOTES.md](NOTES.md)). Stack: Python + requests/BeautifulSoup, Telegram (+ personal Pushover) for alerts, Flask for the planner UI. Hosting is the last open decision. See [PRD.md](PRD.md) for the full plan and [CLAUDE.md](CLAUDE.md) for working conventions.
 
 ## Layout
 

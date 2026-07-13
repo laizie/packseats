@@ -1,6 +1,6 @@
 # PackSeats: PRD
 
-A personal watcher that pings me when a seat opens up in an NC State class, so I don't have to sit refreshing the course catalog during registration.
+A personal watcher that pings me when a seat opens up in an NC State class, so I don't have to sit refreshing the course catalog during registration — plus a local schedule-planner UI for finding classes that fit around my current schedule.
 
 ## Problem
 
@@ -8,7 +8,9 @@ NC State registration is a race. When a section is full, the only way to catch a
 
 ## Who this is for
 
-Just me. Single user, single machine or single hosted process. No accounts, no multi-tenant anything, no UI beyond maybe a config file and the notifications themselves. Keeping it personal keeps it simple.
+Just me for v1. Single user, single machine or single hosted process. No accounts, no multi-tenant anything. Keeping it personal keeps it simple.
+
+That said, I may open it up to friends later, so v1 choices shouldn't foreclose that: notifications go through a Telegram bot (one bot serves unlimited users — each person just messages it once), and the UI is a Flask web app (runs on localhost now, hostable with logins later). If a shared instance ever happens, it must dedupe polling — five people watching sections of the same course is still one request per cycle.
 
 ## Goals
 
@@ -21,7 +23,7 @@ Just me. Single user, single machine or single hosted process. No accounts, no m
 
 - Actually enrolling me in the class. This only watches and alerts. I do the enrollment myself. Auto-enrollment would mean touching the authenticated MyPack side, which I'm deliberately avoiding.
 - Any interaction with MyPack Portal, Shibboleth SSO, or Duo. Everything reads from the public catalog only.
-- A web dashboard, mobile app, or fancy frontend. Not needed for a personal tool.
+- A hosted/public web app or a mobile app for v1. (A *local* schedule-planner web UI **is** in scope — see "Schedule-aware planning" below. Multi-user hosting is a maybe-later, not v1.)
 - Historical analytics or seat-trend graphs. Maybe a "nice someday" but not v1.
 
 ## How it works
@@ -35,9 +37,26 @@ The important architectural fact: NC State exposes two separate layers.
 
 So the design leans entirely on the public catalog. No credentials anywhere in this project.
 
+## Schedule-aware planning (added 2026-07-13)
+
+Beyond watching for seats, I want to plan around my existing schedule. A small local web UI (Flask, single page, opens at localhost) that supports:
+
+- **Enter my current schedule** as a list of enrolled sections (`term, subject, course_number, section`). The app fetches each section's meeting days/times from the catalog itself — no manual time entry.
+- **Week-grid view**: my schedule laid out on a Mon–Fri time grid.
+- **Search around my schedule**: search the catalog and show only sections that don't conflict with the grid, with open/closed/waitlist status visible.
+- **Replacement mode**: pick one enrolled class; find alternative sections of that course (or other candidate courses) that fit around everything else.
+
+Conflict detection runs on the day/time data parsed from search responses (see NOTES.md for the markup). The planner and the watcher share the same fetch/parse core.
+
 ## Phase 0: decisions to make before building
 
 These are the real forks. Resolve them first, in Claude Code, before scaffolding anything.
+
+**Status (2026-07-13): 3 of 4 resolved.**
+1. Class-search request — **done**, fully verified and documented in NOTES.md.
+2. Language — **Python** (requests + BeautifulSoup for fetch/parse).
+3. Notifications — **Telegram bot** as the primary channel (free, multi-user-ready), plus **Pushover** for my own account (emergency priority repeats until acknowledged and bypasses DND).
+4. Hosting — **still open.**
 
 1. **Nail down the class-search request.** Open the class search in a browser, run a real section lookup, and watch the Network tab. Figure out: is it GET or POST, what parameters does it take (term, subject, course number, section), and does the response come back as HTML I have to parse or as something more structured. Everything downstream depends on knowing this exactly. This is task one.
 
@@ -61,6 +80,7 @@ These are the real forks. Resolve them first, in Claude Code, before scaffolding
 Minimal. Two things to track.
 
 - **Watches**: the list of sections I care about. Each is roughly `{ term, subject, course_number, section, label }`. Lives in a config file (JSON, YAML, or a `.env`-plus-list, whatever's cleanest).
+- **My schedule**: the sections I'm currently enrolled in, same shape as a watch minus the label. Meeting days/times get fetched from the catalog on demand, not stored by hand.
 - **Last-seen state**: per watch, the last observed open-seat count (and waitlist count). Needed so I only notify on a transition into availability, not on every poll while a seat sits open. A tiny JSON file or SQLite table is plenty. No database server.
 
 ## Build phases
@@ -70,6 +90,12 @@ Minimal. Two things to track.
 - **Phase 3**: Multiple watches from a config file. Loop over all of them per run.
 - **Phase 4**: Put it on a schedule in the chosen host. Confirm it survives a laptop-closed run.
 - **Phase 5 (optional)**: Nicer config, quiet hours, waitlist-open detection, basic logging.
+
+Planner track (can start after Phase 1, since it shares the fetch/parse core):
+
+- **Phase P1**: Parse meeting days/times from section rows; conflict detection between two sections.
+- **Phase P2**: Flask app with the week-grid view of my entered schedule.
+- **Phase P3**: Search-around-schedule and replacement mode in the UI.
 
 ## Constraints and etiquette
 
