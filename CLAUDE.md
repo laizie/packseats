@@ -6,7 +6,7 @@ PackSeats is a personal watcher that notifies me when a seat opens in an NC Stat
 
 ## Current status
 
-Watcher phases 1–3 and planner track P1–P3 done: `catalog.py` (fetch/parse core incl. meeting days/times), `check.py` (one-shot CLI), `watcher.py` (multi-watch config, per-course request dedupe, transition-only notifications, resilient loop mode), `notify.py` (Telegram + Pushover via `.env`; Pushover is configured and verified on my phone), `planner.py` + `templates/planner.html` (local Flask UI: week grid, schedule entry with auto-fetched meeting times, conflict-aware search, replacement mode, watch-from-UI). Remaining: Phase 4 (hosting — last open decision) and Phase 5 polish.
+Watcher phases 1–3 and planner track P1–P3 done: `catalog.py` (fetch/parse core incl. meeting days/times), `check.py` (one-shot CLI), `watcher.py` (multi-watch config, per-course request dedupe, transition-only notifications, resilient loop mode), `notify.py` (Telegram + Pushover via `.env`; Pushover is configured and verified on my phone), `planner.py` + `templates/planner.html` (local Flask UI: week grid, schedule entry with auto-fetched meeting times, conflict-aware search, replacement mode, watch-from-UI). Phase 4 decided: DigitalOcean VPS via GitHub Student Pack credit; deploy artifacts in `deploy/` + DEPLOY.md, droplet not yet created. Remaining: create the droplet, then Phase 5 polish.
 
 ## Tech stack
 
@@ -14,7 +14,7 @@ Watcher phases 1–3 and planner track P1–P3 done: `catalog.py` (fetch/parse c
 - HTTP + parsing: requests + BeautifulSoup (response is JSON-wrapped HTML — see NOTES.md)
 - Notification: Telegram bot (primary, multi-user-ready) + Pushover (my account only, emergency priority for DND-busting)
 - UI: Flask, single-page local web app (weekly schedule grid + search)
-- Scheduling / host: TBD (GitHub Actions cron / always-on host)
+- Scheduling / host: DigitalOcean droplet (GitHub Student Pack credit), systemd services — see DEPLOY.md
 - State storage: small JSON file or SQLite, no server
 
 ## Hard constraints

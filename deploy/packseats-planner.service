@@ -1,0 +1,14 @@
+[Unit]
+Description=PackSeats schedule planner UI (localhost only — reach it via SSH tunnel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=packseats
+WorkingDirectory=/opt/packseats
+ExecStart=/opt/packseats/.venv/bin/python -m packseats.planner
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

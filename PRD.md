@@ -56,7 +56,7 @@ These are the real forks. Resolve them first, in Claude Code, before scaffolding
 1. Class-search request — **done**, fully verified and documented in NOTES.md.
 2. Language — **Python** (requests + BeautifulSoup for fetch/parse).
 3. Notifications — **Telegram bot** as the primary channel (free, multi-user-ready), plus **Pushover** for my own account (emergency priority repeats until acknowledged and bypasses DND).
-4. Hosting — **still open.**
+4. Hosting — **always-on DigitalOcean droplet** (free via GitHub Student Pack credit), systemd services, planner reached over SSH tunnel. See DEPLOY.md.
 
 1. **Nail down the class-search request.** Open the class search in a browser, run a real section lookup, and watch the Network tab. Figure out: is it GET or POST, what parameters does it take (term, subject, course number, section), and does the response come back as HTML I have to parse or as something more structured. Everything downstream depends on knowing this exactly. This is task one.
 
