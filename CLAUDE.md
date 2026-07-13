@@ -6,7 +6,7 @@ PackSeats is a personal watcher that notifies me when a seat opens in an NC Stat
 
 ## Current status
 
-Pre-build, end of Phase 0. The class-search request is fully reverse-engineered and verified (NOTES.md). Language, notifications, and UI are locked; hosting is the last open decision. Nothing is scaffolded yet.
+Phase 1 done: `packseats/catalog.py` is the shared fetch/parse core (verified live), `packseats/check.py` is the one-shot CLI. Next: Phase 2 (state tracking + notifications) and planner track P1 (meeting-time parsing + conflict detection). Hosting is the last open Phase 0 decision.
 
 ## Tech stack
 
@@ -32,10 +32,13 @@ Pre-build, end of Phase 0. The class-search request is fully reverse-engineered 
 
 ## Commands
 
-To be filled in once the stack is set. Placeholder:
+```bash
+# setup
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-```
-# run once against a single section
-# run the full watcher loop
-# run tests
+# one-shot seat check for a course, optionally narrowed to one section
+.venv/bin/python -m packseats.check 2268 HESF 101 --section 001
+
+# run the full watcher loop — not built yet (Phase 2+)
+# run tests — none yet
 ```

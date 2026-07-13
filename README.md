@@ -15,6 +15,10 @@ Alongside the watcher, a local Flask UI lets me lay my current schedule on a wee
 ```
 ├── CLAUDE.md                    # working conventions and constraints
 ├── PRD.md                       # product requirements and build phases
+├── NOTES.md                     # verified class-search request/response format
+├── packseats/
+│   ├── catalog.py               # fetch + parse core (shared by watcher and planner)
+│   └── check.py                 # one-shot CLI: python -m packseats.check 2268 HESF 101
 ├── config/
 │   └── watches.example.json     # example watched-sections config (copy to watches.json)
 └── data/                        # runtime state (last-seen seat counts) — gitignored

@@ -6,6 +6,10 @@ data/*
 config/watches.json
 .env
 
+# Python
+.venv/
+__pycache__/
+
 # OS noise
 .DS_Store
 
