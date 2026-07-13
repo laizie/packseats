@@ -27,7 +27,10 @@ if [ ! -f .env ]; then
 fi
 [ -f config/watches.json ] || cp config/watches.example.json config/watches.json
 
-chown -R packseats:packseats "$REPO_DIR"
+# only the mutable bits belong to the service user; the code stays owned by
+# whoever cloned it, so `git pull` updates keep working without sudo gymnastics
+mkdir -p data
+chown -R packseats:packseats "$REPO_DIR/data" "$REPO_DIR/config" "$REPO_DIR/.env"
 
 cp deploy/packseats-watcher.service deploy/packseats-planner.service /etc/systemd/system/
 systemctl daemon-reload
