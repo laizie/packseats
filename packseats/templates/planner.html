@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PackSeats Planner</title>
+<style>
+  :root {
+    --line: #e3e5e8; --muted: #6b7280; --ink: #1f2428; --accent: #b03434;
+    --block: #3d6a96; --block-soft: #eaf1f7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: #fafafa; }
+  header { padding: 14px 22px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 14px; }
+  header h1 { margin: 0; font-size: 17px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  header label { margin-left: auto; color: var(--muted); font-size: 13px; }
+  header input { width: 70px; }
+  main { display: grid; grid-template-columns: minmax(520px, 1fr) 400px; gap: 18px; padding: 18px 22px; max-width: 1400px; margin: 0 auto; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .panel h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+  /* week grid */
+  .grid-wrap { display: grid; grid-template-columns: 46px repeat(5, 1fr); }
+  .grid-wrap .dayhead { text-align: center; font-weight: 600; padding-bottom: 6px; font-size: 13px; }
+  .gutter { position: relative; }
+  .gutter span { position: absolute; right: 8px; transform: translateY(-7px); font-size: 11px; color: var(--muted); }
+  .daycol { position: relative; border-left: 1px solid var(--line);
+    background: repeating-linear-gradient(to bottom, transparent 0, transparent 47px, var(--line) 47px, var(--line) 48px); }
+  .daycol:last-child { border-right: 1px solid var(--line); }
+  .block { position: absolute; left: 3px; right: 3px; border-radius: 5px; padding: 3px 6px; overflow: hidden;
+    background: var(--block-soft); border: 1px solid var(--block); color: #24435f; font-size: 11px; }
+  .block b { display: block; font-size: 11.5px; }
+  .block.replacing { opacity: .38; border-style: dashed; }
+  .block.preview { background: #f0faf1; border: 2px dashed #2e7d43; color: #205631; z-index: 3; left: 30%; }
+  .block.preview.bad { background: #fdf1f0; border-color: #b3261e; color: #7c1d16; }
+
+  /* sidebar */
+  .sched-item { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-bottom: 1px solid var(--line); }
+  .sched-item:last-child { border-bottom: 0; }
+  .sched-item .meta { color: var(--muted); font-size: 12px; }
+  .sched-item button { margin-left: auto; }
+  form.row { display: flex; gap: 6px; margin-top: 10px; }
+  form.row input { flex: 1; min-width: 0; }
+  input, select { padding: 5px 7px; border: 1px solid #c9cdd2; border-radius: 5px; font: inherit; }
+  button { padding: 5px 10px; border: 1px solid #c9cdd2; border-radius: 5px; background: #fff; font: inherit; cursor: pointer; }
+  button:hover { background: #f1f2f4; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #963030; }
+
+  /* results */
+  .result { padding: 8px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .result:hover { background: #f7f8f9; }
+  .result .line1 { display: flex; align-items: center; gap: 8px; }
+  .result .line2 { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .result .actions { margin-left: auto; display: flex; gap: 6px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; }
+  .badge.Open { background: #e6f4ea; color: #1d7a35; }
+  .badge.Closed { background: #fdebea; color: #b3261e; }
+  .badge.Waitlist { background: #e8f0fd; color: #175cd3; }
+  .badge.Reserved { background: #fdf3e2; color: #a05c0a; }
+  .fit-yes { color: #1d7a35; font-size: 12px; font-weight: 600; }
+  .fit-no { color: #b3261e; font-size: 12px; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff;
+    padding: 8px 16px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.show { opacity: .95; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PackSeats Planner</h1>
+  <span class="sub">NC State schedule fitting — public catalog only</span>
+  <label>Term <input id="term" value="2268" title="2 + YY + (1 Spring, 6 Sum1, 7 Sum2, 8 Fall)"></label>
+</header>
+<main>
+  <section class="panel">
+    <h2>Week</h2>
+    <div class="grid-wrap" id="gridhead">
+      <div></div><div class="dayhead">Mon</div><div class="dayhead">Tue</div><div class="dayhead">Wed</div><div class="dayhead">Thu</div><div class="dayhead">Fri</div>
+    </div>
+    <div class="grid-wrap" id="grid" style="height:720px"></div>
+    <p class="hint" id="tbd-note" hidden>Some scheduled classes are online/TBD and aren’t drawn on the grid.</p>
+  </section>
+
+  <div>
+    <section class="panel">
+      <h2>My schedule</h2>
+      <div id="sched-list" class="hint">Nothing yet — add the sections you’re enrolled in.</div>
+      <form class="row" id="add-form">
+        <input id="add-subject" placeholder="CSC" required style="max-width:70px">
+        <input id="add-number" placeholder="316" required style="max-width:70px">
+        <input id="add-section" placeholder="001" required style="max-width:70px">
+        <button class="primary">Add</button>
+      </form>
+      <p class="hint">Meeting times are fetched from the catalog automatically.</p>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <h2>Find a class</h2>
+      <label class="hint">Replacing:
+        <select id="replacing" style="width:100%;margin:4px 0 8px">
+          <option value="">nothing — search around my whole schedule</option>
+        </select>
+      </label>
+      <form class="row" id="search-form">
+        <input id="q-subject" placeholder="Subject (CSC)" required>
+        <input id="q-number" placeholder="Number (316)" required style="max-width:110px">
+        <button class="primary">Search</button>
+      </form>
+      <div id="results" style="margin-top:10px"></div>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+const DAYS = ["M","T","W","R","F"];
+const GRID_START = 7 * 60, GRID_END = 22 * 60;      // 7:00–22:00
+const PXPM = 720 / (GRID_END - GRID_START);          // px per minute
+let schedule = [], results = [], previewKey = null;
+
+const $ = id => document.getElementById(id);
+const key = e => `${e.term}:${e.subject}:${e.course_number}:${e.section}`;
+const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2600); };
+
+async function api(path, body) {
+  const opts = body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {};
+  const r = await fetch(path, opts);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function renderGrid() {
+  const grid = $("grid");
+  grid.innerHTML = "";
+  const gutter = document.createElement("div");
+  gutter.className = "gutter";
+  for (let m = GRID_START; m < GRID_END; m += 60) {
+    const s = document.createElement("span");
+    s.style.top = (m - GRID_START) * PXPM + "px";
+    const h = Math.floor(m / 60);
+    s.textContent = (h % 12 || 12) + (h < 12 ? "a" : "p");
+    gutter.appendChild(s);
+  }
+  grid.appendChild(gutter);
+
+  const replacing = $("replacing").value;
+  const preview = results.find(s => s.class_number === previewKey);
+  let hasTBD = false;
+  for (const d of DAYS) {
+    const col = document.createElement("div");
+    col.className = "daycol";
+    for (const e of schedule) {
+      if (e.start == null) { hasTBD = true; continue; }
+      if (!e.days.includes(d)) continue;
+      col.appendChild(block(e, key(e) === replacing ? "replacing" : ""));
+    }
+    if (preview && preview.start != null && preview.days.includes(d))
+      col.appendChild(block(preview, "preview" + (preview.fits ? "" : " bad")));
+    grid.appendChild(col);
+  }
+  $("tbd-note").hidden = !hasTBD;
+}
+
+function block(e, cls) {
+  const b = document.createElement("div");
+  b.className = "block " + cls;
+  b.style.top = (e.start - GRID_START) * PXPM + "px";
+  b.style.height = Math.max((e.end - e.start) * PXPM - 2, 14) + "px";
+  b.innerHTML = `<b>${e.course}-${e.section}</b>${e.time_text}`;
+  b.title = `${e.course}-${e.section} · ${e.time_text} · ${e.location}`;
+  return b;
+}
+
+function renderSchedule() {
+  const list = $("sched-list");
+  const sel = $("replacing");
+  const kept = sel.value;
+  sel.length = 1;
+  if (!schedule.length) { list.className = "hint"; list.textContent = "Nothing yet — add the sections you’re enrolled in."; return; }
+  list.className = ""; list.innerHTML = "";
+  for (const e of schedule) {
+    const row = document.createElement("div");
+    row.className = "sched-item";
+    row.innerHTML = `<div><b>${e.course}-${e.section}</b>
+      <div class="meta">${e.days.join("")} ${e.time_text} · ${e.location || "TBD"}</div></div>`;
+    const rm = document.createElement("button");
+    rm.textContent = "✕"; rm.title = "remove";
+    rm.onclick = async () => { await api("/api/schedule/remove", { key: key(e) }); refresh(); };
+    row.appendChild(rm);
+    list.appendChild(row);
+    sel.add(new Option(`${e.course}-${e.section}`, key(e)));
+  }
+  sel.value = [...sel.options].some(o => o.value === kept) ? kept : "";
+}
+
+function renderResults() {
+  const box = $("results");
+  box.innerHTML = "";
+  if (!results.length) { box.innerHTML = '<p class="hint">No sections.</p>'; return; }
+  for (const s of results) {
+    const div = document.createElement("div");
+    div.className = "result";
+    const fit = s.fits ? '<span class="fit-yes">✓ fits</span>'
+      : `<span class="fit-no">✗ conflicts: ${s.conflicts.join(", ")}</span>`;
+    div.innerHTML = `
+      <div class="line1"><b>${s.course}-${s.section}</b> <span class="badge ${s.status}">${s.status}</span>
+        <span>${s.open_seats}/${s.total_seats}${s.waitlist != null ? ` (wl ${s.waitlist})` : ""}</span>
+        <span class="actions"></span></div>
+      <div class="line2">${s.component} · ${s.days.join("") || "—"} ${s.time_text} · ${s.location || "TBD"} · ${s.instructor || ""} &nbsp; ${fit}</div>`;
+    const actions = div.querySelector(".actions");
+    const watchBtn = document.createElement("button");
+    watchBtn.textContent = "Watch";
+    watchBtn.onclick = async ev => { ev.stopPropagation(); await guard(async () => {
+      await api("/api/watch", payload(s)); toast(`Watching ${s.course}-${s.section}`); }); };
+    const addBtn = document.createElement("button");
+    addBtn.textContent = "Add";
+    addBtn.title = "add to my schedule";
+    addBtn.onclick = async ev => { ev.stopPropagation(); await guard(async () => {
+      await api("/api/schedule", payload(s)); toast(`Added ${s.course}-${s.section}`); refresh(); }); };
+    actions.append(watchBtn, addBtn);
+    div.onclick = () => { previewKey = previewKey === s.class_number ? null : s.class_number; renderGrid(); };
+    box.appendChild(div);
+  }
+}
+
+const payload = s => {
+  const [subject, number] = s.course.split(" ");
+  return { term: $("term").value, subject, course_number: number, section: s.section };
+};
+const guard = async fn => { try { await fn(); } catch (e) { toast(e.message); } };
+
+async function refresh() {
+  schedule = (await api("/api/schedule")).entries;
+  renderSchedule();
+  renderGrid();
+}
+
+$("add-form").onsubmit = ev => { ev.preventDefault(); guard(async () => {
+  await api("/api/schedule", { term: $("term").value, subject: $("add-subject").value,
+    course_number: $("add-number").value, section: $("add-section").value });
+  $("add-form").reset(); refresh();
+}); };
+
+$("search-form").onsubmit = ev => { ev.preventDefault(); doSearch(); };
+
+async function doSearch() {
+  await guard(async () => {
+    const j = await api("/api/search", { term: $("term").value, subject: $("q-subject").value,
+      course_number: $("q-number").value, exclude: $("replacing").value || undefined });
+    results = j.sections; previewKey = null;
+    renderResults(); renderGrid();
+  });
+}
+
+$("replacing").onchange = () => {
+  const k = $("replacing").value;
+  if (k) {
+    const e = schedule.find(x => key(x) === k);
+    $("q-subject").value = e.subject; $("q-number").value = e.course_number;
+    doSearch();
+  } else if (results.length) { doSearch(); }
+  renderGrid();
+};
+
+refresh();
+</script>
+</body>
+</html>
