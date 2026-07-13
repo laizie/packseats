@@ -4,18 +4,23 @@ Usage: python -m packseats.planner  →  http://127.0.0.1:5050
 """
 
 import json
+import re
 from dataclasses import asdict
 from pathlib import Path
 
+import requests
 from flask import Flask, jsonify, render_template, request
 
-from .catalog import ClassSection, search
+from .catalog import TIMEOUT, ClassSection, search
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEDULE_FILE = ROOT / "data" / "schedule.json"
 WATCHES_FILE = ROOT / "config" / "watches.json"
+FORM_URL = "https://webappprd.acs.ncsu.edu/php/coursecat/"
 
 app = Flask(__name__)
+
+_terms_cache: list[dict] = []
 
 
 def entry_key(e: dict) -> str:
@@ -47,6 +52,48 @@ def as_section(e: dict) -> ClassSection:
 @app.get("/")
 def index():
     return render_template("planner.html")
+
+
+@app.get("/api/terms")
+def api_terms():
+    """Valid terms with human-readable names, scraped from the search form page."""
+    global _terms_cache
+    if not _terms_cache:
+        try:
+            resp = requests.get(FORM_URL, timeout=TIMEOUT)
+            resp.raise_for_status()
+            _terms_cache = [
+                {"code": code, "label": label.strip()}
+                for code, label in re.findall(r'<option value="(2\d{3})"[^>]*>([^<]+)</option>', resp.text)
+            ]
+        except Exception as e:
+            return jsonify({"error": f"could not load terms: {e}"}), 502
+    return jsonify({"terms": _terms_cache})
+
+
+@app.post("/api/watch/bulk")
+def api_watch_bulk():
+    """Add many watches at once (used by 'watch all that fit')."""
+    wanted = request.get_json()["watches"]
+    data = {"watches": []}
+    if WATCHES_FILE.exists():
+        data = json.loads(WATCHES_FILE.read_text())
+    existing = {entry_key(w) for w in data["watches"]}
+    added = 0
+    for w in wanted:
+        watch = {
+            "term": w["term"], "subject": w["subject"],
+            "course_number": w["course_number"], "section": w["section"],
+            "label": f"{w['subject']} {w['course_number']}-{w['section']}",
+        }
+        if entry_key(watch) in existing:
+            continue
+        data["watches"].append(watch)
+        existing.add(entry_key(watch))
+        added += 1
+    WATCHES_FILE.parent.mkdir(exist_ok=True)
+    WATCHES_FILE.write_text(json.dumps(data, indent=2))
+    return jsonify({"ok": True, "added": added})
 
 
 @app.get("/api/schedule")

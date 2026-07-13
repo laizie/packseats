@@ -15,7 +15,6 @@
   header h1 { margin: 0; font-size: 17px; }
   header .sub { color: var(--muted); font-size: 13px; }
   header label { margin-left: auto; color: var(--muted); font-size: 13px; }
-  header input { width: 70px; }
   main { display: grid; grid-template-columns: minmax(520px, 1fr) 400px; gap: 18px; padding: 18px 22px; max-width: 1400px; margin: 0 auto; }
   .panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
   .panel h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -71,7 +70,7 @@
 <header>
   <h1>PackSeats Planner</h1>
   <span class="sub">NC State schedule fitting — public catalog only</span>
-  <label>Term <input id="term" value="2268" title="2 + YY + (1 Spring, 6 Sum1, 7 Sum2, 8 Fall)"></label>
+  <label>Term <select id="term" title="terms come straight from the NC State catalog"></select></label>
 </header>
 <main>
   <section class="panel">
@@ -201,6 +200,21 @@ function renderResults() {
   const box = $("results");
   box.innerHTML = "";
   if (!results.length) { box.innerHTML = '<p class="hint">No sections.</p>'; return; }
+  const fits = results.filter(s => s.fits);
+  if (fits.length) {
+    const bar = document.createElement("div");
+    bar.style.cssText = "display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)";
+    bar.innerHTML = `<span class="hint">${fits.length} of ${results.length} section${results.length === 1 ? "" : "s"} fit${fits.length === 1 ? "s" : ""} your schedule</span>`;
+    const btn = document.createElement("button");
+    btn.textContent = `Watch all ${fits.length} that fit`;
+    btn.style.marginLeft = "auto";
+    btn.onclick = () => guard(async () => {
+      const j = await api("/api/watch/bulk", { watches: fits.map(payload) });
+      toast(j.added ? `Watching ${j.added} new section${j.added === 1 ? "" : "s"}` : "Already watching all of them");
+    });
+    bar.appendChild(btn);
+    box.appendChild(bar);
+  }
   for (const s of results) {
     const div = document.createElement("div");
     div.className = "result";
@@ -239,6 +253,17 @@ async function refresh() {
   renderGrid();
 }
 
+async function loadTerms() {
+  const sel = $("term");
+  try {
+    const { terms } = await api("/api/terms");
+    for (const t of terms) sel.add(new Option(`${t.label} — ${t.code}`, t.code));
+  } catch (e) {
+    sel.add(new Option("2268 — 2026 Fall Term", "2268"));
+    toast("Couldn't load term list from the catalog; defaulting to Fall 2026");
+  }
+}
+
 $("add-form").onsubmit = ev => { ev.preventDefault(); guard(async () => {
   await api("/api/schedule", { term: $("term").value, subject: $("add-subject").value,
     course_number: $("add-number").value, section: $("add-section").value });
@@ -266,7 +291,7 @@ $("replacing").onchange = () => {
   renderGrid();
 };
 
-refresh();
+loadTerms().then(refresh);
 </script>
 </body>
 </html>
