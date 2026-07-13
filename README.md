@@ -18,7 +18,9 @@ Alongside the watcher, a local Flask UI lets me lay my current schedule on a wee
 ├── NOTES.md                     # verified class-search request/response format
 ├── packseats/
 │   ├── catalog.py               # fetch + parse core (shared by watcher and planner)
-│   └── check.py                 # one-shot CLI: python -m packseats.check 2268 HESF 101
+│   ├── check.py                 # one-shot CLI: python -m packseats.check 2268 HESF 101
+│   ├── watcher.py               # polling loop: python -m packseats.watcher [--loop]
+│   └── notify.py                # Telegram + Pushover senders (.env-configured)
 ├── config/
 │   └── watches.example.json     # example watched-sections config (copy to watches.json)
 └── data/                        # runtime state (last-seen seat counts) — gitignored

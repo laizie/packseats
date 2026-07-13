@@ -6,7 +6,7 @@ PackSeats is a personal watcher that notifies me when a seat opens in an NC Stat
 
 ## Current status
 
-Phase 1 done: `packseats/catalog.py` is the shared fetch/parse core (verified live), `packseats/check.py` is the one-shot CLI. Next: Phase 2 (state tracking + notifications) and planner track P1 (meeting-time parsing + conflict detection). Hosting is the last open Phase 0 decision.
+Phases 1–3 done: `catalog.py` (fetch/parse core), `check.py` (one-shot CLI), `watcher.py` (multi-watch config, per-course request dedupe, transition-only notifications, resilient loop mode), `notify.py` (Telegram + Pushover via `.env`, stdout fallback when unconfigured). Transition logic verified live. Notification channels still need real tokens in `.env` (copy `.env.example`). Next: Phase 4 (hosting — last open decision) and planner track P1 (meeting-time parsing + conflict detection).
 
 ## Tech stack
 
@@ -39,6 +39,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # one-shot seat check for a course, optionally narrowed to one section
 .venv/bin/python -m packseats.check 2268 HESF 101 --section 001
 
-# run the full watcher loop — not built yet (Phase 2+)
+# watcher: one pass over config/watches.json
+.venv/bin/python -m packseats.watcher
+# watcher: poll forever (default 180s + jitter)
+.venv/bin/python -m packseats.watcher --loop
+
 # run tests — none yet
 ```
