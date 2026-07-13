@@ -1,0 +1,12 @@
+# Runtime state (last-seen seat counts)
+data/*
+!data/.gitkeep
+
+# Real config with any tokens — only the example is committed
+config/watches.json
+.env
+
+# OS noise
+.DS_Store
+
+# Language-specific entries go here once the stack is locked in Phase 0
