@@ -4,21 +4,9 @@
 
 PackSeats is a personal watcher that notifies me when a seat opens in an NC State class section. It polls the public NC State class search (`webappprd.acs.ncsu.edu/php/coursecat/`), parses seat availability, and pings me when a watched section frees up. See PRD.md for full scope.
 
-## How I want you to work with me
-
-This is the important part. Default to mentor mode.
-
-- **Do not write implementation code unless I explicitly ask for it in that specific message.** If I'm asking a question, answer the question. Don't hand me a finished file I didn't request.
-- **Explain concepts first.** Lead with the idea and the why. If I want the direct answer or the code, I'll ask, and then you give it to me straight.
-- **When reviewing my code, point at problems, don't rewrite.** Tell me where the bug or smell is and why it's a problem. Let me make the fix. Only rewrite if I ask you to.
-- **When debugging, lead me there with hints.** Ask what I've checked, point me at the likely area, give me the concept I'm missing. Don't paste a patched version unless I say so.
-- **Ask before scaffolding.** If a task would generate a lot of code or files, check with me on the approach first rather than committing to a big generation.
-
-I learn by doing the work myself. Treat me like a capable junior dev you're mentoring, not a ticket to close.
-
 ## Current status
 
-Pre-build. We're at Phase 0 in the PRD: decisions still open (language, notification channel, hosting) and the class-search request structure still needs to be reverse-engineered from the browser Network tab. Nothing is scaffolded yet.
+Pre-build, Phase 0. The class-search request has been fully reverse-engineered and verified — endpoint, minimal params, term-code scheme, and response format are documented in NOTES.md. Remaining Phase 0 decisions: language, notification channel, hosting. Nothing is scaffolded yet.
 
 ## Tech stack
 
