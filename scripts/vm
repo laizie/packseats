@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Convenience wrapper for the PackSeats VM. Needs the `packseats` host alias in
+# ~/.ssh/config (see DEPLOY.md). Usage:
+#   scripts/vm ui        open the planner UI in the browser (tunnels automatically)
+#   scripts/vm logs      follow the watcher logs live
+#   scripts/vm status    watcher + planner service status
+#   scripts/vm watches   show what's currently being watched
+#   scripts/vm update    pull latest code on the VM and restart services
+#   scripts/vm ssh       plain shell on the VM
+set -euo pipefail
+
+PORT=5050
+
+case "${1:-}" in
+  ui)
+    if ! nc -z localhost $PORT 2>/dev/null; then
+      ssh -f -N -L $PORT:localhost:$PORT packseats
+    fi
+    open "http://localhost:$PORT"
+    ;;
+  logs)
+    ssh -t packseats sudo journalctl -u packseats-watcher -f
+    ;;
+  status)
+    ssh packseats 'systemctl --no-pager status packseats-watcher packseats-planner | grep -E "●|Active:"'
+    ;;
+  watches)
+    ssh packseats 'cat /opt/packseats/config/watches.json'
+    ;;
+  update)
+    ssh packseats 'cd /opt/packseats && git pull && sudo systemctl restart packseats-watcher packseats-planner && systemctl is-active packseats-watcher packseats-planner'
+    ;;
+  ssh)
+    ssh packseats
+    ;;
+  *)
+    grep '^#   ' "$0" | sed 's/^#   //'
+    exit 1
+    ;;
+esac

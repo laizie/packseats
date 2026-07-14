@@ -66,19 +66,30 @@ ssh ubuntu@<vm-ip> 'sudo mv ~/.env /opt/packseats/.env && sudo mv ~/watches.json
 
 ## 5. Day-to-day
 
-```bash
-# watch the logs
-ssh ubuntu@<vm-ip> sudo journalctl -u packseats-watcher -f
+One-time: add a host alias to `~/.ssh/config` so the VM is just `packseats`:
 
-# use the planner UI from your Mac (it is deliberately NOT exposed publicly —
-# it has no login, so it only listens on the VM's localhost)
-ssh -L 5050:localhost:5050 ubuntu@<vm-ip>
-# then open http://localhost:5050 in your browser; watches you add there
-# take effect on the VM's watcher directly
-
-# deploy an update
-ssh ubuntu@<vm-ip> 'cd /opt/packseats && git pull && sudo systemctl restart packseats-watcher packseats-planner'
 ```
+Host packseats
+  HostName <vm-ip>
+  User ubuntu
+  IdentitiesOnly yes
+  IdentityFile ~/.ssh/<the key you gave the instance>
+```
+
+Then `scripts/vm` wraps everything:
+
+```bash
+scripts/vm ui        # open the planner UI in the browser (tunnels automatically)
+scripts/vm logs      # follow the watcher logs live
+scripts/vm status    # watcher + planner service status
+scripts/vm watches   # show what's currently being watched
+scripts/vm update    # pull latest code on the VM and restart services
+scripts/vm ssh       # plain shell on the VM
+```
+
+The planner is deliberately NOT exposed publicly — it has no login, so it only
+listens on the VM's localhost and `vm ui` reaches it over an SSH tunnel. Watches
+added in the UI take effect on the VM's watcher directly.
 
 ## Notes
 

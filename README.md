@@ -23,6 +23,9 @@ Alongside the watcher, a local Flask UI lets me lay my current schedule on a wee
 │   ├── notify.py                # Telegram + Pushover senders (.env-configured)
 │   ├── planner.py               # schedule-planner UI: python -m packseats.planner → localhost:5050
 │   └── templates/planner.html   # single-page week grid + conflict-aware search
+├── scripts/
+│   └── vm                       # day-to-day VM helper: scripts/vm ui|logs|status|update
+├── deploy/                      # systemd units + setup script for the always-free VM
 ├── config/
 │   └── watches.example.json     # example watched-sections config (copy to watches.json)
 └── data/                        # runtime state (last-seen seat counts) — gitignored
