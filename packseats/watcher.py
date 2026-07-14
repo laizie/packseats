@@ -86,9 +86,12 @@ def run_once() -> None:
             log(f"{label(w)}: {sec.status} {sec.open_seats}/{sec.total_seats}")
             prev = state.get(watch_key(w))
             if prev is not None and became_available(prev, now):
+                days = "".join(sec.days) or "Online/TBD"
                 send(
                     f"🟢 {label(w)} just opened: {sec.open_seats}/{sec.total_seats} seats "
-                    f"({prev['status']} → {sec.status}, class #{sec.class_number}, term {term})",
+                    f"({prev['status']} → {sec.status})\n"
+                    f"{sec.course}-{sec.section} — {sec.title}\n"
+                    f"{days} {sec.time_text} · class #{sec.class_number}",
                     url=MYPACK_ENROLL_URL,
                     url_title="Enroll now: MyPack → Manage Classes",
                 )

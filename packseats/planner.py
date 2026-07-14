@@ -40,6 +40,17 @@ def save_schedule(entries: list[dict]) -> None:
     SCHEDULE_FILE.write_text(json.dumps({"entries": entries}, indent=2))
 
 
+def load_watches() -> list[dict]:
+    if WATCHES_FILE.exists():
+        return json.loads(WATCHES_FILE.read_text())["watches"]
+    return []
+
+
+def save_watches(watches: list[dict]) -> None:
+    WATCHES_FILE.parent.mkdir(exist_ok=True)
+    WATCHES_FILE.write_text(json.dumps({"watches": watches}, indent=2))
+
+
 def as_section(e: dict) -> ClassSection:
     """Rebuild a ClassSection from a stored schedule entry, for conflict checks."""
     return ClassSection(
@@ -47,7 +58,7 @@ def as_section(e: dict) -> ClassSection:
         class_number=e["class_number"], status=e["status"], open_seats=e["open_seats"],
         total_seats=e["total_seats"], waitlist=e["waitlist"], days=e["days"],
         start=e["start"], end=e["end"], time_text=e["time_text"],
-        location=e["location"], instructor=e["instructor"],
+        location=e["location"], instructor=e["instructor"], title=e.get("title", ""),
     )
 
 
@@ -73,28 +84,45 @@ def api_terms():
     return jsonify({"terms": _terms_cache})
 
 
+@app.get("/api/watches")
+def api_watches():
+    return jsonify({"watches": load_watches()})
+
+
+@app.post("/api/watches/remove")
+def api_watches_remove():
+    key = request.get_json()["key"]
+    save_watches([w for w in load_watches() if entry_key(w) != key])
+    return jsonify({"ok": True})
+
+
+def as_watch(w: dict) -> dict:
+    """A watch record. The watcher only needs the first five keys; the rest are
+    display detail for the UI's Watching panel."""
+    return {
+        "term": w["term"], "subject": w["subject"],
+        "course_number": w["course_number"], "section": w["section"],
+        "label": f"{w['subject']} {w['course_number']}-{w['section']}",
+        "title": w.get("title", ""),
+        "meeting": w.get("meeting", ""),
+    }
+
+
 @app.post("/api/watch/bulk")
 def api_watch_bulk():
     """Add many watches at once (used by 'watch all that fit')."""
     wanted = request.get_json()["watches"]
-    data = {"watches": []}
-    if WATCHES_FILE.exists():
-        data = json.loads(WATCHES_FILE.read_text())
-    existing = {entry_key(w) for w in data["watches"]}
+    watches = load_watches()
+    existing = {entry_key(w) for w in watches}
     added = 0
     for w in wanted:
-        watch = {
-            "term": w["term"], "subject": w["subject"],
-            "course_number": w["course_number"], "section": w["section"],
-            "label": f"{w['subject']} {w['course_number']}-{w['section']}",
-        }
+        watch = as_watch(w)
         if entry_key(watch) in existing:
             continue
-        data["watches"].append(watch)
+        watches.append(watch)
         existing.add(entry_key(watch))
         added += 1
-    WATCHES_FILE.parent.mkdir(exist_ok=True)
-    WATCHES_FILE.write_text(json.dumps(data, indent=2))
+    save_watches(watches)
     return jsonify({"ok": True, "added": added})
 
 
@@ -153,20 +181,12 @@ def api_search():
 
 @app.post("/api/watch")
 def api_watch():
-    body = request.get_json()
-    watch = {
-        "term": body["term"], "subject": body["subject"],
-        "course_number": body["course_number"], "section": body["section"],
-        "label": f"{body['subject']} {body['course_number']}-{body['section']}",
-    }
-    data = {"watches": []}
-    if WATCHES_FILE.exists():
-        data = json.loads(WATCHES_FILE.read_text())
-    if any(entry_key(w) == entry_key(watch) for w in data["watches"]):
+    watch = as_watch(request.get_json())
+    watches = load_watches()
+    if any(entry_key(w) == entry_key(watch) for w in watches):
         return jsonify({"error": "already watching"}), 409
-    data["watches"].append(watch)
-    WATCHES_FILE.parent.mkdir(exist_ok=True)
-    WATCHES_FILE.write_text(json.dumps(data, indent=2))
+    watches.append(watch)
+    save_watches(watches)
     return jsonify({"ok": True})
 
 

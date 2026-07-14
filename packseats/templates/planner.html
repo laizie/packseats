@@ -50,14 +50,16 @@
   /* results */
   .result { padding: 8px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .result:hover { background: #f7f8f9; }
-  .result .line1 { display: flex; align-items: center; gap: 8px; }
+  .result .line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .result .line1 > b { white-space: nowrap; }
   .result .line2 { color: var(--muted); font-size: 12px; margin-top: 2px; }
   .result .actions { margin-left: auto; display: flex; gap: 6px; }
-  .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; white-space: nowrap; }
   .badge.Open { background: #e6f4ea; color: #1d7a35; }
   .badge.Closed { background: #fdebea; color: #b3261e; }
   .badge.Waitlist { background: #e8f0fd; color: #175cd3; }
   .badge.Reserved { background: #fdf3e2; color: #a05c0a; }
+  .badge.watching { background: #f3ecfd; color: #7c3aed; }
   .fit-yes { color: #1d7a35; font-size: 12px; font-weight: 600; }
   .fit-no { color: #b3261e; font-size: 12px; }
   .hint { color: var(--muted); font-size: 12.5px; }
@@ -96,6 +98,11 @@
     </section>
 
     <section class="panel" style="margin-top:18px">
+      <h2>Watching</h2>
+      <div id="watch-list" class="hint">Nothing watched — hit Watch on a search result.</div>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
       <h2>Find a class</h2>
       <label class="hint">Replacing:
         <select id="replacing" style="width:100%;margin:4px 0 8px">
@@ -117,7 +124,7 @@
 const DAYS = ["M","T","W","R","F"];
 const GRID_START = 7 * 60, GRID_END = 22 * 60;      // 7:00–22:00
 const PXPM = 720 / (GRID_END - GRID_START);          // px per minute
-let schedule = [], results = [], previewKey = null;
+let schedule = [], results = [], watches = [], previewKey = null;
 
 const $ = id => document.getElementById(id);
 const key = e => `${e.term}:${e.subject}:${e.course_number}:${e.section}`;
@@ -211,6 +218,7 @@ function renderResults() {
     btn.onclick = () => guard(async () => {
       const j = await api("/api/watch/bulk", { watches: fits.map(payload) });
       toast(j.added ? `Watching ${j.added} new section${j.added === 1 ? "" : "s"}` : "Already watching all of them");
+      await loadWatches(); renderResults();
     });
     bar.appendChild(btn);
     box.appendChild(bar);
@@ -222,14 +230,23 @@ function renderResults() {
       : `<span class="fit-no">✗ conflicts: ${s.conflicts.join(", ")}</span>`;
     div.innerHTML = `
       <div class="line1"><b>${s.course}-${s.section}</b> <span class="badge ${s.status}">${s.status}</span>
+        ${isWatched(s) ? '<span class="badge watching">👁 watching</span>' : ""}
         <span>${s.open_seats}/${s.total_seats}${s.waitlist != null ? ` (wl ${s.waitlist})` : ""}</span>
         <span class="actions"></span></div>
-      <div class="line2">${s.component} · ${s.days.join("") || "—"} ${s.time_text} · ${s.location || "TBD"} · ${s.instructor || ""} &nbsp; ${fit}</div>`;
+      <div class="line2">${s.title ? `<b>${s.title}</b><br>` : ""}${s.component} · ${s.days.join("") || "—"} ${s.time_text} · ${s.location || "TBD"} · ${s.instructor || ""} &nbsp; ${fit}</div>`;
     const actions = div.querySelector(".actions");
     const watchBtn = document.createElement("button");
-    watchBtn.textContent = "Watch";
-    watchBtn.onclick = async ev => { ev.stopPropagation(); await guard(async () => {
-      await api("/api/watch", payload(s)); toast(`Watching ${s.course}-${s.section}`); }); };
+    watchBtn.textContent = isWatched(s) ? "Unwatch" : "Watch";
+    watchBtn.onclick = ev => { ev.stopPropagation(); guard(async () => {
+      if (isWatched(s)) {
+        await api("/api/watches/remove", { key: resultKey(s) });
+        toast(`Stopped watching ${s.course}-${s.section}`);
+      } else {
+        await api("/api/watch", payload(s));
+        toast(`Watching ${s.course}-${s.section}`);
+      }
+      await loadWatches(); renderResults();
+    }); };
     const addBtn = document.createElement("button");
     addBtn.textContent = "Add";
     addBtn.title = "add to my schedule";
@@ -243,8 +260,37 @@ function renderResults() {
 
 const payload = s => {
   const [subject, number] = s.course.split(" ");
-  return { term: $("term").value, subject, course_number: number, section: s.section };
+  return { term: $("term").value, subject, course_number: number, section: s.section,
+           title: s.title, meeting: `${s.days.join("") || "Online"} ${s.time_text}` };
 };
+const resultKey = s => { const p = payload(s); return key(p); };
+const isWatched = s => watches.some(w => key(w) === resultKey(s));
+const termLabel = code => {
+  const o = [...$("term").options].find(o => o.value === code);
+  return o ? o.text.split(" — ")[0] : `term ${code}`;
+};
+
+async function loadWatches() {
+  watches = (await api("/api/watches")).watches;
+  const list = $("watch-list");
+  if (!watches.length) { list.className = "hint"; list.textContent = "Nothing watched — hit Watch on a search result."; return; }
+  list.className = ""; list.innerHTML = "";
+  for (const w of watches) {
+    const row = document.createElement("div");
+    row.className = "sched-item";
+    row.innerHTML = `<div><b>👁 ${w.label}</b>${w.title ? ` — ${w.title}` : ""}
+      <div class="meta">${w.meeting ? w.meeting + " · " : ""}${termLabel(w.term)}</div></div>`;
+    const rm = document.createElement("button");
+    rm.textContent = "✕"; rm.title = "stop watching";
+    rm.onclick = () => guard(async () => {
+      await api("/api/watches/remove", { key: key(w) });
+      toast(`Stopped watching ${w.label}`);
+      await loadWatches(); renderResults();
+    });
+    row.appendChild(rm);
+    list.appendChild(row);
+  }
+}
 const guard = async fn => { try { await fn(); } catch (e) { toast(e.message); } };
 
 async function refresh() {
@@ -291,7 +337,7 @@ $("replacing").onchange = () => {
   renderGrid();
 };
 
-loadTerms().then(refresh);
+loadTerms().then(() => { refresh(); loadWatches(); });
 </script>
 </body>
 </html>

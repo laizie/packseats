@@ -37,6 +37,7 @@ class ClassSection:
     time_text: str = "TBD"
     location: str = ""
     instructor: str = ""
+    title: str = ""  # course title, e.g. "Data Structures For Computer Scientists"
 
     def conflicts_with(self, other: "ClassSection") -> bool:
         if self.start is None or other.start is None:
@@ -72,6 +73,8 @@ def parse_sections(html: str) -> list[ClassSection]:
     out: list[ClassSection] = []
     for course_el in soup.select("section.course"):
         course = course_el.get("id", "").replace("-", " ")
+        title_el = course_el.select_one("h1 small")
+        title = title_el.get_text(strip=True) if title_el else ""
         for row in course_el.select("tr"):
             cells = row.find_all("td")
             if len(cells) < 4:
@@ -90,6 +93,7 @@ def parse_sections(html: str) -> list[ClassSection]:
                 open_seats=int(seats.group(1)),
                 total_seats=int(seats.group(2)),
                 waitlist=int(seats.group(3)) if seats.group(3) else None,
+                title=title,
             )
             if len(cells) > 4:
                 _parse_meeting(cells[4], sec)
