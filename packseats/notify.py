@@ -26,16 +26,20 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 
-def send(message: str) -> None:
-    """Send to every configured channel; fall back to stdout when none are set up."""
+def send(message: str, url: str | None = None, url_title: str | None = None) -> None:
+    """Send to every configured channel; fall back to stdout when none are set up.
+
+    `url` rides along as a tappable link (Pushover shows `url_title`).
+    """
     sent = False
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if token and chat_id:
+        text = f"{message}\n{url}" if url else message
         _post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            {"chat_id": chat_id, "text": message},
+            {"chat_id": chat_id, "text": text},
             "telegram",
         )
         sent = True
@@ -49,13 +53,16 @@ def send(message: str) -> None:
             "message": message,
             "priority": int(os.environ.get("PUSHOVER_PRIORITY", "1")),
         }
+        if url:
+            data["url"] = url
+            data["url_title"] = url_title or url
         if data["priority"] == 2:  # emergency: re-alerts every 60s for an hour until acked
             data.update(retry=60, expire=3600)
         _post("https://api.pushover.net/1/messages.json", data, "pushover")
         sent = True
 
     if not sent:
-        print(f"[notify:stdout] {message}")
+        print(f"[notify:stdout] {message}" + (f" [{url}]" if url else ""))
 
 
 def _post(url: str, data: dict, channel: str) -> None:

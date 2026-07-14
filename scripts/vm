@@ -13,8 +13,10 @@ PORT=5050
 
 case "${1:-}" in
   ui)
+    # the port forward itself comes from the LocalForward line in ~/.ssh/config,
+    # so any live session already provides it; only start one if none exists
     if ! nc -z localhost $PORT 2>/dev/null; then
-      ssh -f -N -L $PORT:localhost:$PORT packseats
+      ssh -f -N packseats
     fi
     open "http://localhost:$PORT"
     ;;

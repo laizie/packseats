@@ -22,6 +22,14 @@ ROOT = Path(__file__).resolve().parent.parent
 WATCHES_FILE = ROOT / "config" / "watches.json"
 STATE_FILE = ROOT / "data" / "state.json"
 
+# Included in alerts so enrolling is one tap away. The watcher itself NEVER
+# requests this URL — the no-auth constraint stands; the human logs in.
+MYPACK_ENROLL_URL = (
+    "https://portalsp.acs.ncsu.edu/psc/CS92PRD_8/EMPLOYEE/NCSIS/c/SSR_STUDENT_FL.SSR_MD_SP_FL.GBL"
+    "?Action=U&MD=Y&GMenu=SSR_STUDENT_FL&GComp=SSR_START_PAGE_FL&GPage=SSR_START_PAGE_FL"
+    "&scname=CS_SSR_MANAGE_CLASSES_NAV&"
+)
+
 
 def log(msg: str) -> None:
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}")
@@ -80,7 +88,9 @@ def run_once() -> None:
             if prev is not None and became_available(prev, now):
                 send(
                     f"🟢 {label(w)} just opened: {sec.open_seats}/{sec.total_seats} seats "
-                    f"({prev['status']} → {sec.status}, class #{sec.class_number}, term {term})"
+                    f"({prev['status']} → {sec.status}, class #{sec.class_number}, term {term})",
+                    url=MYPACK_ENROLL_URL,
+                    url_title="Enroll now: MyPack → Manage Classes",
                 )
             state[watch_key(w)] = now
 
