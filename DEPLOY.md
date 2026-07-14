@@ -3,6 +3,20 @@
 Always-on hosting at $0 forever, so the watcher keeps polling with the laptop
 closed. One-time setup, ~30 minutes, most of it Oracle's signup.
 
+## Current deployment
+
+Already live — sections 1–4 are the record of how it was built, section 5 is what
+you actually use day to day.
+
+| | |
+|---|---|
+| Host | `150.136.139.176` (Oracle Always Free, US East) |
+| SSH | `ssh packseats` (alias in `~/.ssh/config`, user `ubuntu`) |
+| Services | `packseats-watcher`, `packseats-planner` (systemd, auto-restart, survive reboot) |
+| Code | `/opt/packseats`, pulled from GitHub via a read-only deploy key |
+| Secrets | `/opt/packseats/.env` (mode 600, owned by the `packseats` service user) |
+| OS | **Ubuntu 20.04 / Python 3.8** — see the caveat at the bottom |
+
 ## 1. Oracle account
 
 Sign up at https://www.oracle.com/cloud/free/. Notes:
@@ -97,6 +111,17 @@ added in the UI take effect on the VM's watcher directly.
   tighten it by editing `ExecStart` in the service file to add `--interval 90`,
   but stay polite.
 - `.env`, `config/watches.json`, and `data/` live only on the VM (all
-  gitignored) — `git pull` never touches them.
-- If Ubuntu 24.04 isn't offered on the Micro shape in your region, Ubuntu 22.04
-  works identically.
+  gitignored) — `git pull` never touches them. Manage watches through the
+  planner UI (`vm ui`) rather than editing JSON on the VM.
+- The planner has **no authentication**, which is why it binds to the VM's
+  localhost and is only reachable through the SSH tunnel. Don't open port 5050
+  in the Oracle security list.
+
+### Caveat: this VM runs Ubuntu 20.04
+
+The instance came up on 20.04 (Python 3.8), not the 24.04 in step 2. The code is
+kept 3.8-compatible with `from __future__ import annotations` in every module,
+so it runs fine — but 20.04 is past its standard support window. Recreating the
+instance on **Ubuntu 24.04** is worth doing when convenient: nothing is stored
+on the VM that isn't in git or re-copyable (`.env`, `watches.json`), so it's a
+~10-minute redo of steps 2–4.

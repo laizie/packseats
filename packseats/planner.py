@@ -13,7 +13,7 @@ from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request
 
-from .catalog import TIMEOUT, ClassSection, search
+from .catalog import TIMEOUT, ClassSection, Meeting, search, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEDULE_FILE = ROOT / "data" / "schedule.json"
@@ -53,11 +53,17 @@ def save_watches(watches: list[dict]) -> None:
 
 def as_section(e: dict) -> ClassSection:
     """Rebuild a ClassSection from a stored schedule entry, for conflict checks."""
+    if "meetings" in e:
+        meetings = [Meeting(**m) for m in e["meetings"]]
+    else:  # entry saved before sections could hold multiple meeting patterns
+        meetings = [Meeting(days=e.get("days", []), start=e.get("start"),
+                            end=e.get("end"), time_text=e.get("time_text", "TBD"))]
+        meetings = [m for m in meetings if m.days or m.start is not None]
     return ClassSection(
         course=e["course"], section=e["section"], component=e["component"],
         class_number=e["class_number"], status=e["status"], open_seats=e["open_seats"],
-        total_seats=e["total_seats"], waitlist=e["waitlist"], days=e["days"],
-        start=e["start"], end=e["end"], time_text=e["time_text"],
+        total_seats=e["total_seats"], waitlist=e["waitlist"], meetings=meetings,
+        meeting_text=e.get("meeting_text") or summarize(meetings),
         location=e["location"], instructor=e["instructor"], title=e.get("title", ""),
     )
 

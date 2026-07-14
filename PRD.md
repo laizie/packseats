@@ -52,50 +52,51 @@ Conflict detection runs on the day/time data parsed from search responses (see N
 
 These are the real forks. Resolve them first, in Claude Code, before scaffolding anything.
 
-**Status (2026-07-13): 3 of 4 resolved.**
-1. Class-search request — **done**, fully verified and documented in NOTES.md.
-2. Language — **Python** (requests + BeautifulSoup for fetch/parse).
-3. Notifications — **Telegram bot** as the primary channel (free, multi-user-ready), plus **Pushover** for my own account (emergency priority repeats until acknowledged and bypasses DND).
-4. Hosting — **always-on Oracle Cloud Always Free VM** ($0 forever), systemd services, planner reached over SSH tunnel. See DEPLOY.md.
+**All four resolved (2026-07-13).**
 
-1. **Nail down the class-search request.** Open the class search in a browser, run a real section lookup, and watch the Network tab. Figure out: is it GET or POST, what parameters does it take (term, subject, course number, section), and does the response come back as HTML I have to parse or as something more structured. Everything downstream depends on knowing this exactly. This is task one.
-
-2. **Language.** Python is the natural fit for a scrape-and-poll tool (clean HTTP + parsing story, and I already know it from the ML work). Node/TypeScript is also fine and I've been living in TS lately. Recommendation: Python unless I have a reason to want this in the TS world. Decide and lock it.
-
-3. **Notification channel.** Options, roughly cheapest and simplest first:
-   - Telegram bot: free, instant, trivial API. Strong default.
-   - ntfy.sh: free push to phone, near-zero setup.
-   - Pushover: a few dollars once, very reliable.
-   - Twilio SMS: real text message, pennies each, slight setup.
-   - Plain email via SMTP app password: fine if inbox is enough.
-   Recommendation: Telegram or ntfy for v1.
-
-4. **Where it runs.** It has to keep polling while my laptop is closed.
-   - GitHub Actions cron: zero cost, but ~5 min minimum interval and the timing drifts, which hurts during peak registration.
-   - Always-on host (Raspberry Pi, cheap VPS, Fly.io, Cloudflare Worker cron): tighter intervals, more control, slight cost or setup.
-   Recommendation: pick based on how fast I need alerts. If seconds matter during add/drop, go always-on. If a few minutes is fine, Actions is the lazy win.
+1. **Class-search request** — reverse-engineered and verified. A four-field POST to
+   `search.php`, no auth or cookies, returning JSON-wrapped HTML. Full detail in NOTES.md.
+2. **Language** — **Python** (requests + BeautifulSoup). The response body being HTML
+   inside JSON settled it.
+3. **Notifications** — **Pushover** (live and verified; supports emergency priority that
+   repeats until acknowledged and bypasses DND). **Telegram** is also implemented but
+   unconfigured — it's the free, unlimited-user option if this ever gets shared with
+   friends, since one bot token serves everyone.
+4. **Hosting** — **Oracle Cloud Always Free VM** ($0 forever, no expiry), systemd
+   services, planner reached over an SSH tunnel. Chosen over GitHub Actions cron, whose
+   ~5-minute floor and peak-hour drift are worst exactly when registration is hottest.
+   See DEPLOY.md.
 
 ## Data model
 
-Minimal. Two things to track.
+Minimal. Three JSON files, no database. The planner writes what the watcher reads.
 
-- **Watches**: the list of sections I care about. Each is roughly `{ term, subject, course_number, section, label }`. Lives in a config file (JSON, YAML, or a `.env`-plus-list, whatever's cleanest).
-- **My schedule**: the sections I'm currently enrolled in, same shape as a watch minus the label. Meeting days/times get fetched from the catalog on demand, not stored by hand.
-- **Last-seen state**: per watch, the last observed open-seat count (and waitlist count). Needed so I only notify on a transition into availability, not on every poll while a seat sits open. A tiny JSON file or SQLite table is plenty. No database server.
+- **Watches** (`config/watches.json`): the sections I care about — `{ term, subject, course_number, section, label }`, plus `title` and `meeting` as display detail for the UI. The watcher only needs the first five.
+- **My schedule** (`data/schedule.json`): the sections I'm enrolled in. Meeting days/times are fetched from the catalog when added, not typed by hand.
+- **Last-seen state** (`data/state.json`): per watch, the last observed status and open-seat/waitlist counts. This is what makes notifications fire only on a *transition* into availability, rather than every poll while a seat sits open.
 
 ## Build phases
 
-- **Phase 1**: One-shot script. Given one hardcoded section, fetch and print its current seat count. Proves the request and parsing work.
-- **Phase 2**: Add the compare-to-last-state logic and a single notification channel. Run it manually a few times, drop and re-add a test section if possible to confirm the transition fires.
-- **Phase 3**: Multiple watches from a config file. Loop over all of them per run.
-- **Phase 4**: Put it on a schedule in the chosen host. Confirm it survives a laptop-closed run.
-- **Phase 5 (optional)**: Nicer config, quiet hours, waitlist-open detection, basic logging.
+All shipped as of 2026-07-13.
 
-Planner track (can start after Phase 1, since it shares the fetch/parse core):
+- ~~**Phase 1**: One-shot script — fetch and print a section's current seat count.~~ `packseats/check.py`
+- ~~**Phase 2**: Compare-to-last-state logic and a notification channel.~~ Verified by forcing a Closed→Open transition against a live section.
+- ~~**Phase 3**: Multiple watches from a config file.~~ Folded into Phase 2 — one request per *course* serves all its watched sections.
+- ~~**Phase 4**: Put it on a schedule in the chosen host.~~ Oracle VM, systemd, running unattended.
+- **Phase 5 (optional, not started)**: quiet hours, waitlist-open detection, structured logging.
 
-- **Phase P1**: Parse meeting days/times from section rows; conflict detection between two sections.
-- **Phase P2**: Flask app with the week-grid view of my entered schedule.
-- **Phase P3**: Search-around-schedule and replacement mode in the UI.
+Planner track (shares the fetch/parse core):
+
+- ~~**Phase P1**: Parse meeting days/times; conflict detection between sections.~~ `ClassSection.conflicts_with()`; online/TBD sections never conflict.
+- ~~**Phase P2**: Flask app with the week-grid view.~~
+- ~~**Phase P3**: Search-around-schedule and replacement mode.~~
+
+Added beyond the original plan:
+
+- Term dropdown populated from the catalog's own term list (real names, not codes).
+- **Watch all N that fit** — bulk-watch every conflict-free section of a course.
+- Watching panel: see and remove active watches, with watch state reflected on search results.
+- Alerts carry course title, section, meeting days/time, class number, and a tap-through link to MyPack → Manage Classes. (A link for me to tap — the code never requests it.)
 
 ## Constraints and etiquette
 

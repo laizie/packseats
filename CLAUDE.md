@@ -6,16 +6,22 @@ PackSeats is a personal watcher that notifies me when a seat opens in an NC Stat
 
 ## Current status
 
-Watcher phases 1–3 and planner track P1–P3 done: `catalog.py` (fetch/parse core incl. meeting days/times), `check.py` (one-shot CLI), `watcher.py` (multi-watch config, per-course request dedupe, transition-only notifications, resilient loop mode), `notify.py` (Telegram + Pushover via `.env`; Pushover is configured and verified on my phone), `planner.py` + `templates/planner.html` (local Flask UI: week grid, schedule entry with auto-fetched meeting times, conflict-aware search, replacement mode, watch-from-UI). Phase 4 decided: Oracle Cloud Always Free VM (chosen over paid options to stay completely free); deploy artifacts in `deploy/` + DEPLOY.md, VM not yet created. Remaining: create the VM, then Phase 5 polish.
+**Shipped and running.** All PRD phases done except optional Phase 5 polish.
+
+- Deployed on an Oracle Cloud Always Free VM (Ubuntu 20.04, `150.136.139.176`), two systemd services: `packseats-watcher` (polling loop) and `packseats-planner` (UI on the VM's localhost, reached via SSH tunnel). See DEPLOY.md.
+- Pushover is configured and verified end-to-end from the VM. Telegram is coded but has no tokens set (blank channels are skipped).
+- Access from the Mac: `packseats` host alias in `~/.ssh/config` (with `LocalForward 5050`), `vm` alias in `~/.zshrc` → `scripts/vm ui|logs|status|watches|update|ssh`.
+
+**Gotcha:** the VM runs **Python 3.8**, so every module needs `from __future__ import annotations` for modern type syntax (`int | None`). Keep it that way, or recreate the VM on Ubuntu 24.04 (planned, not urgent).
 
 ## Tech stack
 
-- Language / runtime: Python 3
+- Language / runtime: Python 3 (3.8-compatible — see gotcha above)
 - HTTP + parsing: requests + BeautifulSoup (response is JSON-wrapped HTML — see NOTES.md)
-- Notification: Telegram bot (primary, multi-user-ready) + Pushover (my account only, emergency priority for DND-busting)
-- UI: Flask, single-page local web app (weekly schedule grid + search)
-- Scheduling / host: Oracle Cloud Always Free VM (completely free), systemd services — see DEPLOY.md
-- State storage: small JSON file or SQLite, no server
+- Notification: Pushover (live; emergency priority available for DND-busting) + Telegram (coded, unconfigured — the multi-user-ready option if friends join)
+- UI: Flask, single-page app (weekly schedule grid + conflict-aware search + watch management)
+- Scheduling / host: Oracle Cloud Always Free VM, systemd services — see DEPLOY.md
+- State storage: JSON files, no server — `config/watches.json` (watches), `data/state.json` (last-seen seats), `data/schedule.json` (my enrolled sections)
 
 ## Hard constraints
 
@@ -24,11 +30,15 @@ Watcher phases 1–3 and planner track P1–P3 done: `catalog.py` (fetch/parse c
 - **Resilient loop.** A single failed fetch logs and continues. One bad request never crashes the watcher.
 - **No secrets in the repo.** Keep any notification tokens out of source control (env vars or an ignored config file).
 
+The MyPack link attached to alerts is the one place MyPack is named. It's a link for a human to tap — the code must never request it.
+
 ## Conventions
 
 - Keep it small and readable. This is a personal tool, not a framework. Resist over-engineering.
-- Watched sections live in a config file, not hardcoded past Phase 1.
+- Watched sections live in a config file, not hardcoded.
 - Notify only on a transition into availability (full to open), not on every poll while a seat sits open.
+- The planner writes the same `config/watches.json` the watcher reads — that's the integration point between UI and daemon; keep it that way rather than adding a database.
+- One catalog request per *course* per pass, even when several of its sections are watched (there is no section-level query parameter — see NOTES.md).
 
 ## Commands
 
@@ -46,6 +56,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # schedule-planner UI → http://127.0.0.1:5050
 .venv/bin/python -m packseats.planner
+
+# the deployed VM (from the Mac)
+vm ui | vm logs | vm status | vm watches | vm update | vm ssh
 
 # run tests — none yet
 ```

@@ -59,7 +59,8 @@ So: parse JSON first, then parse the `html` string with an HTML parser.
 
 Structure inside `html`:
 
-- One `<section class="course" id="HESF-101">` block per course.
+- One `<section class="course" id="HESF-101">` block per course. Its `<h1><small>`
+  holds the course **title** (e.g. "Operating Systems Principles").
 - Inside each, a table with one `<tr>` per class section. Header:
   `Section | Component | Class # | Avail. | Day/Time | Location | Instructor | Begin/End Dates | Topic | Notes`
 - The **Avail. cell** (4th `<td>`) is what the watcher cares about:
@@ -76,7 +77,14 @@ Structure inside `html`:
   `id="reserve-HESF-101-071" data-content="<p>1 seat - AGI Students Only"`.
   Useful later if reserved-seat noise becomes a problem (PRD open question).
 - Row cells: `td[0]`=section, `td[1]`=component (Lec/Phy/Lab), `td[2]`=class
-  number, `td[3]`=availability.
+  number, `td[3]`=availability, `td[4]`=day/time, `td[5]`=location,
+  `td[6]`=instructor.
+- **Meeting days/times** live in `td[4]`: a `<ul class="weekdisplay">` where each
+  meeting day is an `<li class="meet">` (the day name is in the `<abbr title>`;
+  non-meeting days are `<li class="open">` — note "open" here means *free*, not
+  seats). Times follow as plain text, `3:00 PM - 4:15 PM`. Online/async sections
+  render the cell as literally `TBD` with no `weekdisplay` at all — roughly a
+  third of sections. No row observed with two meeting patterns.
 
 ## Design implications
 

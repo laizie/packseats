@@ -160,24 +160,32 @@ function renderGrid() {
     const col = document.createElement("div");
     col.className = "daycol";
     for (const e of schedule) {
-      if (e.start == null) { hasTBD = true; continue; }
-      if (!e.days.includes(d)) continue;
-      col.appendChild(block(e, key(e) === replacing ? "replacing" : ""));
+      const ms = timedMeetings(e);
+      if (!ms.length) { hasTBD = true; continue; }
+      for (const m of ms.filter(m => m.days.includes(d)))
+        col.appendChild(block(e, m, key(e) === replacing ? "replacing" : ""));
     }
-    if (preview && preview.start != null && preview.days.includes(d))
-      col.appendChild(block(preview, "preview" + (preview.fits ? "" : " bad")));
+    if (preview) {
+      for (const m of timedMeetings(preview).filter(m => m.days.includes(d)))
+        col.appendChild(block(preview, m, "preview" + (preview.fits ? "" : " bad")));
+    }
     grid.appendChild(col);
   }
   $("tbd-note").hidden = !hasTBD;
 }
 
-function block(e, cls) {
+// a section can meet on several patterns (lecture + lab); older saved entries
+// stored a single flat pattern instead
+const timedMeetings = e => (e.meetings || [{ days: e.days || [], start: e.start, end: e.end, time_text: e.time_text }])
+  .filter(m => m.start != null);
+
+function block(e, m, cls) {
   const b = document.createElement("div");
   b.className = "block " + cls;
-  b.style.top = (e.start - GRID_START) * PXPM + "px";
-  b.style.height = Math.max((e.end - e.start) * PXPM - 2, 14) + "px";
-  b.innerHTML = `<b>${e.course}-${e.section}</b>${e.time_text}`;
-  b.title = `${e.course}-${e.section} · ${e.time_text} · ${e.location}`;
+  b.style.top = (m.start - GRID_START) * PXPM + "px";
+  b.style.height = Math.max((m.end - m.start) * PXPM - 2, 14) + "px";
+  b.innerHTML = `<b>${e.course}-${e.section}</b>${m.time_text}`;
+  b.title = `${e.course}-${e.section} · ${m.time_text} · ${e.location}`;
   return b;
 }
 
@@ -192,7 +200,7 @@ function renderSchedule() {
     const row = document.createElement("div");
     row.className = "sched-item";
     row.innerHTML = `<div><b>${e.course}-${e.section}</b>
-      <div class="meta">${e.days.join("")} ${e.time_text} · ${e.location || "TBD"}</div></div>`;
+      <div class="meta">${meetingText(e)} · ${e.location || "TBD"}</div></div>`;
     const rm = document.createElement("button");
     rm.textContent = "✕"; rm.title = "remove";
     rm.onclick = async () => { await api("/api/schedule/remove", { key: key(e) }); refresh(); };
@@ -233,7 +241,7 @@ function renderResults() {
         ${isWatched(s) ? '<span class="badge watching">👁 watching</span>' : ""}
         <span>${s.open_seats}/${s.total_seats}${s.waitlist != null ? ` (wl ${s.waitlist})` : ""}</span>
         <span class="actions"></span></div>
-      <div class="line2">${s.title ? `<b>${s.title}</b><br>` : ""}${s.component} · ${s.days.join("") || "—"} ${s.time_text} · ${s.location || "TBD"} · ${s.instructor || ""} &nbsp; ${fit}</div>`;
+      <div class="line2">${s.title ? `<b>${s.title}</b><br>` : ""}${s.component} · ${meetingText(s)} · ${s.location || "TBD"} · ${s.instructor || ""} &nbsp; ${fit}</div>`;
     const actions = div.querySelector(".actions");
     const watchBtn = document.createElement("button");
     watchBtn.textContent = isWatched(s) ? "Unwatch" : "Watch";
@@ -258,10 +266,11 @@ function renderResults() {
   }
 }
 
+const meetingText = e => e.meeting_text || `${(e.days || []).join("")} ${e.time_text || "TBD"}`.trim();
 const payload = s => {
   const [subject, number] = s.course.split(" ");
   return { term: $("term").value, subject, course_number: number, section: s.section,
-           title: s.title, meeting: `${s.days.join("") || "Online"} ${s.time_text}` };
+           title: s.title, meeting: meetingText(s) };
 };
 const resultKey = s => { const p = payload(s); return key(p); };
 const isWatched = s => watches.some(w => key(w) === resultKey(s));
