@@ -18,7 +18,7 @@ PackSeats is a personal watcher that notifies me when a seat opens in an NC Stat
 
 - Language / runtime: Python 3 (3.8-compatible — see gotcha above)
 - HTTP + parsing: requests + BeautifulSoup (response is JSON-wrapped HTML — see NOTES.md)
-- Notification: Pushover (live; emergency priority available for DND-busting) + Telegram (coded, unconfigured — the multi-user-ready option if friends join)
+- Notification: Pushover (live, running at emergency priority — re-alerts every 60s for an hour until acknowledged) + Telegram (coded, unconfigured — the multi-user-ready option if friends join)
 - UI: Flask, single-page app (weekly schedule grid + conflict-aware search + watch management)
 - Scheduling / host: Oracle Cloud Always Free VM, systemd services — see DEPLOY.md
 - State storage: JSON files, no server — `config/watches.json` (watches), `data/state.json` (last-seen seats), `data/schedule.json` (my enrolled sections)
