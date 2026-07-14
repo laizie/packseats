@@ -4,6 +4,8 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# systemd captures stdout; without this Python block-buffers it and logs never appear
+Environment=PYTHONUNBUFFERED=1
 User=packseats
 WorkingDirectory=/opt/packseats
 ExecStart=/opt/packseats/.venv/bin/python -m packseats.watcher --loop
