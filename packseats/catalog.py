@@ -1,5 +1,7 @@
 """Fetch and parse NC State's public class search. Request/response format: NOTES.md."""
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 

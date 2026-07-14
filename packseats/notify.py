@@ -1,5 +1,7 @@
 """Send notifications via Telegram and/or Pushover, configured by env vars (see .env.example)."""
 
+from __future__ import annotations
+
 import os
 import sys
 from pathlib import Path

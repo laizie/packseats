@@ -5,6 +5,8 @@ Usage:
   python -m packseats.watcher --loop     # poll forever (interval + jitter)
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import random

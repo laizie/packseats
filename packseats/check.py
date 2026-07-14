@@ -3,6 +3,8 @@
 Usage: python -m packseats.check 2268 HESF 101 --section 001
 """
 
+from __future__ import annotations
+
 import argparse
 
 from .catalog import search
