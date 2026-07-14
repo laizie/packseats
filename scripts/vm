@@ -21,16 +21,16 @@ case "${1:-}" in
     open "http://localhost:$PORT"
     ;;
   logs)
-    ssh -t packseats sudo journalctl -u packseats-watcher -f
+    ssh -o ClearAllForwardings=yes -t packseats sudo journalctl -u packseats-watcher -f
     ;;
   status)
-    ssh packseats 'systemctl --no-pager status packseats-watcher packseats-planner | grep -E "●|Active:"'
+    ssh -o ClearAllForwardings=yes packseats 'systemctl --no-pager status packseats-watcher packseats-planner | grep -E "●|Active:"'
     ;;
   watches)
-    ssh packseats 'cat /opt/packseats/config/watches.json'
+    ssh -o ClearAllForwardings=yes packseats 'cat /opt/packseats/config/watches.json'
     ;;
   update)
-    ssh packseats 'cd /opt/packseats && git pull && sudo systemctl restart packseats-watcher packseats-planner && systemctl is-active packseats-watcher packseats-planner'
+    ssh -o ClearAllForwardings=yes packseats 'cd /opt/packseats && git pull && sudo systemctl restart packseats-watcher packseats-planner && systemctl is-active packseats-watcher packseats-planner'
     ;;
   ssh)
     ssh packseats
