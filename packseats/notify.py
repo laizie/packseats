@@ -11,7 +11,10 @@ import requests
 TIMEOUT = 15
 
 
-def _load_dotenv() -> None:
+def load_dotenv() -> None:
+    """Load KEY=value lines from the repo's .env into os.environ (without overriding
+    anything already set). Every entry point that needs secrets calls this — the
+    planner doesn't import notify, so it calls load_dotenv() itself."""
     env_file = Path(__file__).resolve().parent.parent / ".env"
     if not env_file.exists():
         return
@@ -23,7 +26,7 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-_load_dotenv()
+load_dotenv()
 
 
 def send(message: str, url: str | None = None, url_title: str | None = None) -> None:

@@ -23,6 +23,11 @@ from itsdangerous import BadData, URLSafeTimedSerializer
 
 from . import store
 from .catalog import HEADERS, TIMEOUT, ClassSection, Meeting, search, summarize
+from .notify import load_dotenv
+
+# The planner reads secrets (PACKSEATS_SECRET, PUBLIC_URL, admin id) from .env, so load
+# it at import — unlike the watcher/bot, the planner doesn't otherwise import notify.
+load_dotenv()
 
 ROOT = Path(__file__).resolve().parent.parent
 FORM_URL = "https://webappprd.acs.ncsu.edu/php/coursecat/"
