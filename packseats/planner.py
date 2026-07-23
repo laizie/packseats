@@ -22,7 +22,8 @@ from flask import Flask, jsonify, redirect, render_template, request, session
 from itsdangerous import BadData, URLSafeTimedSerializer
 
 from . import store
-from .catalog import HEADERS, TIMEOUT, ClassSection, Meeting, search, summarize
+from .catalog import (HEADERS, TIMEOUT, ClassSection, Meeting, list_courses,
+                      list_subjects, search, summarize)
 from .notify import load_dotenv
 
 # The planner reads secrets (PACKSEATS_SECRET, PUBLIC_URL, admin id) from .env, so load
@@ -35,6 +36,8 @@ LOGIN_MAX_AGE = 600  # a /ui login link is valid for 10 minutes
 
 app = Flask(__name__)
 _terms_cache: list[dict] = []
+_subjects_cache: dict[str, list[dict]] = {}  # term -> subjects
+_courses_cache: dict[tuple[str, str], list[dict]] = {}  # (term, subject) -> courses
 _serializer: URLSafeTimedSerializer | None = None
 
 
@@ -175,6 +178,39 @@ def api_terms():
         except Exception as e:
             return jsonify({"error": f"could not load terms: {e}"}), 502
     return jsonify({"terms": _terms_cache})
+
+
+@app.get("/api/subjects")
+@login_required
+def api_subjects():
+    """All subjects offered in a term (for the subject pickers). Cached per term."""
+    term = request.args.get("term", "").strip()
+    if not term:
+        return jsonify({"error": "term required"}), 400
+    if term not in _subjects_cache:
+        try:
+            _subjects_cache[term] = list_subjects(term)
+        except Exception as e:
+            return jsonify({"error": f"could not load subjects: {e}"}), 502
+    return jsonify({"subjects": _subjects_cache[term]})
+
+
+@app.get("/api/courses")
+@login_required
+def api_courses():
+    """All courses in a subject this term (for the course pickers). Cached per subject —
+    a subject sweep is a chunky request, so we only ever fetch each one once."""
+    term = request.args.get("term", "").strip()
+    subject = request.args.get("subject", "").strip().upper()
+    if not term or not subject:
+        return jsonify({"error": "term and subject required"}), 400
+    ck = (term, subject)
+    if ck not in _courses_cache:
+        try:
+            _courses_cache[ck] = list_courses(term, subject)
+        except Exception as e:
+            return jsonify({"error": f"could not load courses: {e}"}), 502
+    return jsonify({"courses": _courses_cache[ck]})
 
 
 @app.get("/api/watches")

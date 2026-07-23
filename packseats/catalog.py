@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 
 SEARCH_URL = "https://webappprd.acs.ncsu.edu/php/coursecat/search.php"
+SUBJECTS_URL = "https://webappprd.acs.ncsu.edu/php/coursecat/subjects.php"
 TIMEOUT = 15
 
 # A polite, identifying User-Agent so catalog traffic isn't anonymous — lets NC State
@@ -84,6 +85,50 @@ def search(term: str, subject: str, course_number: str) -> list[ClassSection]:
     )
     resp.raise_for_status()
     return parse_sections(resp.json()["html"])
+
+
+def list_subjects(term: str) -> list[dict]:
+    """Every subject offered in a term: [{code, name}], e.g. {"code": "CSC", "name":
+    "Computer Science"}. One request to the catalog's subject endpoint (the same one the
+    search form's autocomplete uses)."""
+    import json
+
+    resp = requests.post(SUBJECTS_URL, data={"strm": term}, headers=HEADERS, timeout=TIMEOUT)
+    resp.raise_for_status()
+    raw = resp.json().get("subj_js", "[]")  # a JSON *string* of "CODE - Name" entries
+    out = []
+    for entry in json.loads(raw):
+        code, _, name = entry.partition(" - ")
+        out.append({"code": code.strip(), "name": name.strip()})
+    return out
+
+
+def list_courses(term: str, subject: str) -> list[dict]:
+    """Every course offered in a subject this term: [{number, title}]. One subject-wide
+    catalog sweep (course-number >= 0). Chunky (~300 KB) but user-initiated, not polled."""
+    resp = requests.post(
+        SEARCH_URL,
+        data={"term": term, "subject": subject,
+              "course-inequality": ">=", "course-number": "0"},
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return parse_courses(resp.json()["html"])
+
+
+def parse_courses(html: str) -> list[dict]:
+    """Distinct courses (id + title) from a search response, without the per-section detail."""
+    soup = BeautifulSoup(html, "html.parser")
+    out = []
+    for course_el in soup.select("section.course"):
+        cid = course_el.get("id", "")  # e.g. "CSC-316"
+        if "-" not in cid:
+            continue
+        number = cid.split("-", 1)[1]
+        title_el = course_el.select_one("h1 small")
+        out.append({"number": number, "title": title_el.get_text(strip=True) if title_el else ""})
+    return out
 
 
 def parse_sections(html: str) -> list[ClassSection]:

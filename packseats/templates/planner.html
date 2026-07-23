@@ -74,13 +74,20 @@
   .watch-group:last-child { margin-bottom: 0; }
   .wg-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #fbfbfc; }
   .wg-head.multi { cursor: pointer; }
-  .wg-head.multi:hover { background: #f4f5f7; }
-  .wg-caret { color: var(--muted); font-size: 10px; width: 10px; text-align: center; }
+  .wg-head.multi:hover { background: #eef1f4; }
   .wg-title { min-width: 0; }
   .wg-title b { font-size: 13px; }
   .wg-title .meta { color: var(--muted); font-size: 12px; }
   .wg-count { margin-left: auto; font-size: 11px; color: var(--muted); background: #eef0f2;
     border-radius: 9px; padding: 1px 8px; white-space: nowrap; }
+  /* the collapse control on a multi-section course: a pill that clearly reads as a dropdown */
+  .wg-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11px;
+    font-weight: 600; color: #2f5878; background: var(--block-soft); border: 1px solid #cfe0ee;
+    border-radius: 9px; padding: 2px 9px; white-space: nowrap; }
+  .wg-head.multi:hover .wg-toggle { background: #dbe8f4; }
+  .wg-toggle .chev { font-size: 9px; transition: transform .15s ease; }
+  .wg-head.open .wg-toggle { color: #fff; background: var(--block); border-color: var(--block); }
+  .wg-head.open .wg-toggle .chev { transform: rotate(180deg); }
   .wg-remove, .wg-sec button { border: 0; background: none; color: var(--muted); padding: 2px 6px; font-size: 13px; }
   .wg-remove:hover, .wg-sec button:hover { background: none; color: var(--accent); }
   .wg-body { border-top: 1px solid var(--line); }
@@ -115,12 +122,12 @@
       <h2>My schedule</h2>
       <div id="sched-list" class="hint">Nothing yet — add the sections you’re enrolled in.</div>
       <form class="row" id="add-form">
-        <input id="add-subject" placeholder="CSC" required style="max-width:70px">
-        <input id="add-number" placeholder="316" required style="max-width:70px">
-        <input id="add-section" placeholder="001" required style="max-width:70px">
+        <input id="add-subject" placeholder="CSC" list="subjects-dl" autocomplete="off" required style="max-width:80px">
+        <input id="add-number" placeholder="316" list="courses-add-dl" autocomplete="off" required style="max-width:80px">
+        <input id="add-section" placeholder="001" required style="max-width:64px">
         <button class="primary">Add</button>
       </form>
-      <p class="hint">Meeting times are fetched from the catalog automatically.</p>
+      <p class="hint">Pick a subject and course from the lists (or type them). Meeting times are fetched automatically.</p>
     </section>
 
     <section class="panel" style="margin-top:18px">
@@ -139,14 +146,18 @@
         </select>
       </label>
       <form class="row" id="search-form">
-        <input id="q-subject" placeholder="Subject (CSC)" required>
-        <input id="q-number" placeholder="Number (316)" required style="max-width:110px">
+        <input id="q-subject" placeholder="Subject (CSC)" list="subjects-dl" autocomplete="off" required>
+        <input id="q-number" placeholder="Number (316)" list="courses-q-dl" autocomplete="off" required style="max-width:110px">
         <button class="primary">Search</button>
       </form>
+      <p class="hint" style="margin:6px 0 0">Choose a subject, then a course from the list — or type them in.</p>
       <div id="results" style="margin-top:10px"></div>
     </section>
   </div>
 </main>
+<datalist id="subjects-dl"></datalist>
+<datalist id="courses-add-dl"></datalist>
+<datalist id="courses-q-dl"></datalist>
 <div id="toast"></div>
 
 <script>
@@ -359,12 +370,14 @@ function renderWatches() {
     const g = document.createElement("div");
     g.className = "watch-group";
     const head = document.createElement("div");
-    head.className = "wg-head" + (multi ? " multi" : "");
+    head.className = "wg-head" + (multi ? " multi" : "") + (multi && expanded ? " open" : "");
+    if (multi) head.title = expanded ? "Click to collapse" : "Click to expand sections";
     head.innerHTML = `
-      <span class="wg-caret">${multi ? (expanded ? "▾" : "▸") : ""}</span>
       <div class="wg-title"><b>👁 ${courseLabel}</b>${w0.title ? ` — ${w0.title}` : ""}
         <div class="meta">${multi ? termLabel(w0.term) : sectionMeta(w0)}</div></div>
-      <span class="wg-count">${multi ? ws.length + " sections" : "§" + w0.section}</span>`;
+      ${multi
+        ? `<span class="wg-toggle">${ws.length} sections <span class="chev">▾</span></span>`
+        : `<span class="wg-count">§${w0.section}</span>`}`;
     const rm = document.createElement("button");
     rm.className = "wg-remove"; rm.textContent = "✕";
     rm.title = multi ? `stop watching all ${ws.length} sections` : "stop watching";
@@ -406,6 +419,43 @@ async function refresh() {
   renderGrid();
 }
 
+function fillDatalist(dl, items, value, label) {
+  dl.innerHTML = "";
+  for (const it of items) {
+    const o = document.createElement("option");
+    o.value = value(it);
+    o.textContent = label(it);  // browsers show value + this description
+    dl.appendChild(o);
+  }
+}
+
+async function loadSubjects() {
+  // subjects are term-specific; re-fetch on term change and invalidate course lists
+  fillDatalist($("courses-q-dl"), [], () => "", () => "");
+  fillDatalist($("courses-add-dl"), [], () => "", () => "");
+  try {
+    const { subjects } = await api(`/api/subjects?term=${encodeURIComponent($("term").value)}`);
+    fillDatalist($("subjects-dl"), subjects, s => s.code, s => `${s.code} — ${s.name}`);
+  } catch (e) { /* typing still works without the picker */ }
+}
+
+async function loadCourses(subject, dlId) {
+  subject = (subject || "").trim().toUpperCase();
+  const dl = $(dlId);
+  if (!subject) { fillDatalist(dl, [], () => "", () => ""); return; }
+  const ck = `${$("term").value}:${subject}`;
+  if (dl._forSubject === ck) return;  // already showing this subject's courses
+  try {
+    const { courses } = await api(`/api/courses?term=${encodeURIComponent($("term").value)}&subject=${encodeURIComponent(subject)}`);
+    fillDatalist(dl, courses, c => c.number, c => c.title ? `${c.number} — ${c.title}` : c.number);
+    dl._forSubject = ck;
+  } catch (e) { /* typing still works */ }
+}
+
+$("q-subject").addEventListener("change", () => loadCourses($("q-subject").value, "courses-q-dl"));
+$("add-subject").addEventListener("change", () => loadCourses($("add-subject").value, "courses-add-dl"));
+$("term").addEventListener("change", loadSubjects);
+
 async function loadTerms() {
   const sel = $("term");
   try {
@@ -444,13 +494,14 @@ $("replacing").onchange = () => {
   if (k) {
     const e = schedule.find(x => key(x) === k);
     $("q-subject").value = e.subject; $("q-number").value = e.course_number;
+    loadCourses(e.subject, "courses-q-dl");
     doSearch();
   } else if (results.length) { doSearch(); }
   renderGrid();
 };
 
 loadMe();
-loadTerms().then(() => { refresh(); loadWatches(); });
+loadTerms().then(() => { loadSubjects(); refresh(); loadWatches(); });
 </script>
 </body>
 </html>
