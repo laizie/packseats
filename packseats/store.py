@@ -97,12 +97,33 @@ def add_watch(record: dict, cap: int | None = None) -> tuple[bool, str]:
 def remove_watch(chat_id: int | str, key: str) -> None:
     """Remove the caller's watch whose `term:subject:course_number:section` == key.
     Only ever touches watches owned by this chat_id."""
+    remove_watches(chat_id, [key])
+
+
+def remove_watches(chat_id: int | str, keys: list[str] | None) -> int:
+    """Remove several of the caller's watches at once, under one lock. `keys` is a list
+    of `term:subject:course_number:section` keys; pass None to remove ALL of the caller's
+    watches. Only ever touches watches owned by this chat_id. Returns how many were removed."""
     def wkey(w: dict) -> str:
         return f"{w['term']}:{w['subject']}:{w['course_number']}:{w['section']}"
 
     cid = str(chat_id)
-    update_watches(lambda ws: [w for w in ws
-                               if not (str(w.get("chat_id")) == cid and wkey(w) == key)])
+    wanted = None if keys is None else set(keys)
+    removed = 0
+
+    def prune(ws: list[dict]) -> list[dict]:
+        nonlocal removed
+        kept = []
+        for w in ws:
+            mine = str(w.get("chat_id")) == cid
+            if mine and (wanted is None or wkey(w) in wanted):
+                removed += 1
+            else:
+                kept.append(w)
+        return kept
+
+    update_watches(prune)
+    return removed
 
 
 # --- users (data/users.json) -------------------------------------------------

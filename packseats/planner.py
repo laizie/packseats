@@ -191,6 +191,17 @@ def api_watches_remove():
     return jsonify({"ok": True})
 
 
+@app.post("/api/watches/remove-bulk")
+@login_required
+def api_watches_remove_bulk():
+    """Remove many of the caller's watches at once. Body: {"keys": [...]} to remove a
+    specific set (e.g. one course's sections), or {"all": true} to clear them all."""
+    body = request.get_json()
+    keys = None if body.get("all") else list(body.get("keys", []))
+    removed = store.remove_watches(current_chat_id(), keys)
+    return jsonify({"ok": True, "removed": removed})
+
+
 @app.post("/api/watch")
 @login_required
 def api_watch():

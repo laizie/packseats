@@ -63,6 +63,31 @@
   .fit-yes { color: #1d7a35; font-size: 12px; font-weight: 600; }
   .fit-no { color: #b3261e; font-size: 12px; }
   .hint { color: var(--muted); font-size: 12.5px; }
+
+  /* watching groups */
+  .panel-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .panel-head h2 { margin: 0; }
+  .watch-count { color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; }
+  .linkbtn { margin-left: auto; border: 0; background: none; color: var(--accent); padding: 2px 4px; font-size: 12px; }
+  .linkbtn:hover { background: none; text-decoration: underline; }
+  .watch-group { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+  .watch-group:last-child { margin-bottom: 0; }
+  .wg-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #fbfbfc; }
+  .wg-head.multi { cursor: pointer; }
+  .wg-head.multi:hover { background: #f4f5f7; }
+  .wg-caret { color: var(--muted); font-size: 10px; width: 10px; text-align: center; }
+  .wg-title { min-width: 0; }
+  .wg-title b { font-size: 13px; }
+  .wg-title .meta { color: var(--muted); font-size: 12px; }
+  .wg-count { margin-left: auto; font-size: 11px; color: var(--muted); background: #eef0f2;
+    border-radius: 9px; padding: 1px 8px; white-space: nowrap; }
+  .wg-remove, .wg-sec button { border: 0; background: none; color: var(--muted); padding: 2px 6px; font-size: 13px; }
+  .wg-remove:hover, .wg-sec button:hover { background: none; color: var(--accent); }
+  .wg-body { border-top: 1px solid var(--line); }
+  .wg-sec { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 28px; border-bottom: 1px solid var(--line); }
+  .wg-sec:last-child { border-bottom: 0; }
+  .wg-sec .meta { color: var(--muted); font-size: 12px; }
+  .wg-sec button { margin-left: auto; }
   #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff;
     padding: 8px 16px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
   #toast.show { opacity: .95; }
@@ -99,7 +124,10 @@
     </section>
 
     <section class="panel" style="margin-top:18px">
-      <h2>Watching</h2>
+      <div class="panel-head">
+        <h2>Watching <span class="watch-count" id="watch-count"></span></h2>
+        <button class="linkbtn" id="watch-remove-all" hidden>Remove all</button>
+      </div>
       <div id="watch-list" class="hint">Nothing watched — hit Watch on a search result.</div>
     </section>
 
@@ -126,6 +154,7 @@ const DAYS = ["M","T","W","R","F"];
 const GRID_START = 7 * 60, GRID_END = 22 * 60;      // 7:00–22:00
 const PXPM = 720 / (GRID_END - GRID_START);          // px per minute
 let schedule = [], results = [], watches = [], previewKey = null;
+const expandedGroups = new Set();  // watch-course keys the user has expanded
 
 const $ = id => document.getElementById(id);
 const key = e => `${e.term}:${e.subject}:${e.course_number}:${e.section}`;
@@ -294,25 +323,79 @@ const termLabel = code => {
   return o ? o.text.split(" — ")[0] : `term ${code}`;
 };
 
+const sectionMeta = w => `${w.meeting ? w.meeting + " · " : ""}${termLabel(w.term)}`;
+
 async function loadWatches() {
   watches = (await api("/api/watches")).watches;
+  // drop remembered expand-state for courses that no longer have watches
+  const live = new Set(watches.map(w => `${w.term}:${w.subject}:${w.course_number}`));
+  for (const gk of [...expandedGroups]) if (!live.has(gk)) expandedGroups.delete(gk);
+  renderWatches();
+}
+
+const removeWatches = (msg, body) => guard(async () => {
+  await api("/api/watches/remove-bulk", body);
+  toast(msg);
+  await loadWatches(); renderResults();
+});
+
+function renderWatches() {
   const list = $("watch-list");
+  $("watch-count").textContent = watches.length ? `(${watches.length})` : "";
+  $("watch-remove-all").hidden = !watches.length;
   if (!watches.length) { list.className = "hint"; list.textContent = "Nothing watched — hit Watch on a search result."; return; }
   list.className = ""; list.innerHTML = "";
+
+  // group by course; a course's sections collapse together under one header
+  const groups = new Map();
   for (const w of watches) {
-    const row = document.createElement("div");
-    row.className = "sched-item";
-    row.innerHTML = `<div><b>👁 ${w.label}</b>${w.title ? ` — ${w.title}` : ""}
-      <div class="meta">${w.meeting ? w.meeting + " · " : ""}${termLabel(w.term)}</div></div>`;
+    const gk = `${w.term}:${w.subject}:${w.course_number}`;
+    (groups.get(gk) || groups.set(gk, []).get(gk)).push(w);
+  }
+
+  for (const [gk, ws] of groups) {
+    const w0 = ws[0], multi = ws.length > 1, expanded = expandedGroups.has(gk);
+    const courseLabel = `${w0.subject} ${w0.course_number}`;
+    const g = document.createElement("div");
+    g.className = "watch-group";
+    const head = document.createElement("div");
+    head.className = "wg-head" + (multi ? " multi" : "");
+    head.innerHTML = `
+      <span class="wg-caret">${multi ? (expanded ? "▾" : "▸") : ""}</span>
+      <div class="wg-title"><b>👁 ${courseLabel}</b>${w0.title ? ` — ${w0.title}` : ""}
+        <div class="meta">${multi ? termLabel(w0.term) : sectionMeta(w0)}</div></div>
+      <span class="wg-count">${multi ? ws.length + " sections" : "§" + w0.section}</span>`;
     const rm = document.createElement("button");
-    rm.textContent = "✕"; rm.title = "stop watching";
-    rm.onclick = () => guard(async () => {
-      await api("/api/watches/remove", { key: key(w) });
-      toast(`Stopped watching ${w.label}`);
-      await loadWatches(); renderResults();
-    });
-    row.appendChild(rm);
-    list.appendChild(row);
+    rm.className = "wg-remove"; rm.textContent = "✕";
+    rm.title = multi ? `stop watching all ${ws.length} sections` : "stop watching";
+    rm.onclick = ev => {
+      ev.stopPropagation();
+      if (multi) removeWatches(`Stopped watching ${courseLabel} (${ws.length} sections)`, { keys: ws.map(key) });
+      else removeWatches(`Stopped watching ${w0.label}`, { keys: [key(w0)] });
+    };
+    head.appendChild(rm);
+    if (multi) head.onclick = () => {
+      expandedGroups.has(gk) ? expandedGroups.delete(gk) : expandedGroups.add(gk);
+      renderWatches();
+    };
+    g.appendChild(head);
+
+    if (multi && expanded) {
+      const body = document.createElement("div");
+      body.className = "wg-body";
+      for (const w of ws) {
+        const sec = document.createElement("div");
+        sec.className = "wg-sec";
+        sec.innerHTML = `<div><b>§${w.section}</b> <span class="meta">${sectionMeta(w)}</span></div>`;
+        const x = document.createElement("button");
+        x.textContent = "✕"; x.title = "stop watching this section";
+        x.onclick = () => removeWatches(`Stopped watching ${w.label}`, { keys: [key(w)] });
+        sec.appendChild(x);
+        body.appendChild(sec);
+      }
+      g.appendChild(body);
+    }
+    list.appendChild(g);
   }
 }
 const guard = async fn => { try { await fn(); } catch (e) { toast(e.message); } };
@@ -339,6 +422,11 @@ $("add-form").onsubmit = ev => { ev.preventDefault(); guard(async () => {
     course_number: $("add-number").value, section: $("add-section").value });
   $("add-form").reset(); refresh();
 }); };
+
+$("watch-remove-all").onclick = () => {
+  if (!confirm(`Stop watching all ${watches.length} section${watches.length === 1 ? "" : "s"}?`)) return;
+  removeWatches("Removed everything from Watching", { all: true });
+};
 
 $("search-form").onsubmit = ev => { ev.preventDefault(); doSearch(); };
 
