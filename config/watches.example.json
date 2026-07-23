@@ -6,6 +6,17 @@
       "course_number": "316",
       "section": "001",
       "label": "Data Structures — Lec 001"
+    },
+    {
+      "term": "2261",
+      "subject": "MA",
+      "course_number": "242",
+      "section": "003",
+      "label": "MA 242-003",
+      "title": "Calculus III",
+      "meeting": "MWF 8:30 AM - 9:20 AM",
+      "chat_id": 123456789,
+      "owner": "friend_username"
     }
   ]
 }

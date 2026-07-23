@@ -1,0 +1,16 @@
+[Unit]
+Description=PackSeats Telegram bot (shared, invite-gated; friends manage watches by chat)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# systemd captures stdout; without this Python block-buffers it and logs never appear
+Environment=PYTHONUNBUFFERED=1
+User=packseats
+WorkingDirectory=/opt/packseats
+ExecStart=/opt/packseats/.venv/bin/python -m packseats.bot
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

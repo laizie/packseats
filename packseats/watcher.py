@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .catalog import search
-from .notify import send
+from .notify import send, send_telegram
 
 ROOT = Path(__file__).resolve().parent.parent
 WATCHES_FILE = ROOT / "config" / "watches.json"
@@ -39,10 +39,6 @@ def label(w: dict) -> str:
     return w.get("label") or f"{w['subject']} {w['course_number']}-{w['section']}"
 
 
-def watch_key(w: dict) -> str:
-    return f"{w['term']}:{w['subject']}:{w['course_number']}:{w['section']}"
-
-
 def load_watches() -> list[dict]:
     if not WATCHES_FILE.exists():
         sys.exit(f"no watch config at {WATCHES_FILE} — copy config/watches.example.json there")
@@ -62,6 +58,25 @@ def became_available(prev: dict, now: dict) -> bool:
     return now["status"] == "Open" and prev["status"] != "Open"
 
 
+def notify_watchers(watchers: list[dict], message: str, url: str, url_title: str) -> None:
+    """Alert everyone watching a section, once each. A watch tagged with a `chat_id`
+    (added via the bot) goes to that Telegram user; an untagged watch (the owner's
+    own, added via the planner) goes through the legacy broadcast (Pushover / the
+    owner's personal Telegram)."""
+    seen_chats: set[str] = set()
+    sent_legacy = False
+    for w in watchers:
+        chat_id = w.get("chat_id")
+        if chat_id is not None:
+            if str(chat_id) in seen_chats:
+                continue
+            seen_chats.add(str(chat_id))
+            send_telegram(message, chat_id, url=url, url_title=url_title)
+        elif not sent_legacy:
+            send(message, url=url, url_title=url_title)
+            sent_legacy = True
+
+
 def run_once() -> None:
     watches = load_watches()
     state = load_state()
@@ -77,24 +92,34 @@ def run_once() -> None:
         except Exception as e:  # one bad fetch never crashes the pass
             log(f"fetch failed for {subject} {number} (term {term}): {e}")
             continue
+
+        # group watches by section: seat state is shared across everyone watching it,
+        # so the transition is decided once and the alert fans out to all of them.
+        by_section: dict[str, list[dict]] = {}
         for w in course_watches:
-            sec = rows.get(w["section"])
+            by_section.setdefault(w["section"], []).append(w)
+
+        for section, watchers in by_section.items():
+            sec = rows.get(section)
             if sec is None:
-                log(f"watched section not in results: {label(w)}")
+                log(f"watched section not in results: {label(watchers[0])}")
                 continue
+            skey = f"{term}:{subject}:{number}:{section}"
             now = {"status": sec.status, "open_seats": sec.open_seats, "waitlist": sec.waitlist}
-            log(f"{label(w)}: {sec.status} {sec.open_seats}/{sec.total_seats}")
-            prev = state.get(watch_key(w))
+            log(f"{label(watchers[0])}: {sec.status} {sec.open_seats}/{sec.total_seats} "
+                f"({len(watchers)} watcher{'s' if len(watchers) != 1 else ''})")
+            prev = state.get(skey)
             if prev is not None and became_available(prev, now):
-                send(
-                    f"🟢 {label(w)} just opened: {sec.open_seats}/{sec.total_seats} seats "
+                notify_watchers(
+                    watchers,
+                    f"🟢 {sec.course}-{sec.section} just opened: {sec.open_seats}/{sec.total_seats} seats "
                     f"({prev['status']} → {sec.status})\n"
                     f"{sec.course}-{sec.section} — {sec.title}\n"
                     f"{sec.meeting_text} · class #{sec.class_number}",
                     url=MYPACK_ENROLL_URL,
                     url_title="Enroll now: MyPack → Manage Classes",
                 )
-            state[watch_key(w)] = now
+            state[skey] = now
 
     save_state(state)
 

@@ -11,6 +11,10 @@ from bs4 import BeautifulSoup
 SEARCH_URL = "https://webappprd.acs.ncsu.edu/php/coursecat/search.php"
 TIMEOUT = 15
 
+# A polite, identifying User-Agent so catalog traffic isn't anonymous — lets NC State
+# see what's hitting them (and reach the project) instead of an unlabeled bot.
+HEADERS = {"User-Agent": "PackSeats/1.0 (+https://github.com/laizie/packseats)"}
+
 # open/total, optionally followed by the waitlist count, e.g. "1/45" or "0/20 (2)"
 _SEATS_RE = re.compile(r"(\d+)/(\d+)(?:\s*\((\d+)\))?")
 _TIME_RE = re.compile(r"(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)")
@@ -75,6 +79,7 @@ def search(term: str, subject: str, course_number: str) -> list[ClassSection]:
             "course-inequality": "=",
             "course-number": course_number,
         },
+        headers=HEADERS,
         timeout=TIMEOUT,
     )
     resp.raise_for_status()

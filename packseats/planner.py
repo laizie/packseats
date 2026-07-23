@@ -1,54 +1,132 @@
-"""Schedule planner: local Flask UI for finding classes that fit around my schedule.
+"""Schedule planner: Flask UI for finding classes that fit around your schedule.
+
+Runs single-user on localhost by default (reach it over an SSH tunnel). When exposed to
+friends it is multi-user and authenticated: each person logs in via a one-time link minted
+by the Telegram bot's /ui command, and only ever sees their own schedule and watches.
 
 Usage: python -m packseats.planner  →  http://127.0.0.1:5050
 """
 
 from __future__ import annotations
 
-import json
+import os
 import re
+import secrets
+import sys
 from dataclasses import asdict
+from functools import wraps
 from pathlib import Path
 
 import requests
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session
+from itsdangerous import BadData, URLSafeTimedSerializer
 
-from .catalog import TIMEOUT, ClassSection, Meeting, search, summarize
+from . import store
+from .catalog import HEADERS, TIMEOUT, ClassSection, Meeting, search, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
-SCHEDULE_FILE = ROOT / "data" / "schedule.json"
-WATCHES_FILE = ROOT / "config" / "watches.json"
 FORM_URL = "https://webappprd.acs.ncsu.edu/php/coursecat/"
+LOGIN_MAX_AGE = 600  # a /ui login link is valid for 10 minutes
 
 app = Flask(__name__)
-
 _terms_cache: list[dict] = []
+_serializer: URLSafeTimedSerializer | None = None
 
+
+# --- auth --------------------------------------------------------------------
+
+def admin_id() -> str | None:
+    return os.environ.get("PACKSEATS_ADMIN_CHAT_ID") or os.environ.get("TELEGRAM_CHAT_ID") or None
+
+
+def max_watches() -> int:
+    try:
+        return int(os.environ.get("PACKSEATS_MAX_WATCHES", "15"))
+    except ValueError:
+        return 15
+
+
+def is_approved(chat_id) -> bool:
+    return str(chat_id) == str(admin_id()) or str(chat_id) in store.load_users()
+
+
+def username_for(chat_id) -> str:
+    return store.load_users().get(str(chat_id), {}).get("username", "")
+
+
+def current_chat_id():
+    return session.get("chat_id")
+
+
+def login_gate(msg: str = "") -> str:
+    note = msg or "Open the PackSeats bot on Telegram and send <code>/ui</code> to get a fresh link."
+    return (
+        "<!doctype html><meta charset=utf-8>"
+        "<title>PackSeats — sign in</title>"
+        "<div style='font:16px/1.5 system-ui;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#222'>"
+        "<h1 style='font-size:1.4rem'>PackSeats planner</h1>"
+        f"<p>{note}</p></div>"
+    )
+
+
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        cid = session.get("chat_id")
+        if cid is None or not is_approved(cid):
+            session.clear()
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "auth required"}), 401
+            return login_gate(), 401
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+@app.get("/login")
+def login():
+    token = request.args.get("token", "")
+    try:
+        chat_id = _serializer.loads(token, max_age=LOGIN_MAX_AGE)
+    except BadData:
+        return login_gate("That link is invalid or has expired. Send <code>/ui</code> to the bot for a new one."), 400
+    if not is_approved(chat_id):
+        return login_gate("Your access isn't active. Ask the owner, then send <code>/ui</code> to the bot."), 403
+    session["chat_id"] = chat_id
+    session.permanent = True
+    return redirect("/")
+
+
+@app.get("/logout")
+def logout():
+    session.clear()
+    return login_gate("Signed out. Send <code>/ui</code> to the bot to sign back in.")
+
+
+@app.get("/api/me")
+@login_required
+def api_me():
+    cid = current_chat_id()
+    return jsonify({"chat_id": cid, "username": username_for(cid),
+                    "is_admin": str(cid) == str(admin_id())})
+
+
+# --- helpers -----------------------------------------------------------------
 
 def entry_key(e: dict) -> str:
     return f"{e['term']}:{e['subject']}:{e['course_number']}:{e['section']}"
 
 
-def load_schedule() -> list[dict]:
-    if SCHEDULE_FILE.exists():
-        return json.loads(SCHEDULE_FILE.read_text())["entries"]
-    return []
-
-
-def save_schedule(entries: list[dict]) -> None:
-    SCHEDULE_FILE.parent.mkdir(exist_ok=True)
-    SCHEDULE_FILE.write_text(json.dumps({"entries": entries}, indent=2))
-
-
-def load_watches() -> list[dict]:
-    if WATCHES_FILE.exists():
-        return json.loads(WATCHES_FILE.read_text())["watches"]
-    return []
-
-
-def save_watches(watches: list[dict]) -> None:
-    WATCHES_FILE.parent.mkdir(exist_ok=True)
-    WATCHES_FILE.write_text(json.dumps({"watches": watches}, indent=2))
+def watch_record(w: dict, chat_id, username: str) -> dict:
+    """A watch record tagged with its owner. The watcher only needs the routing keys;
+    the rest is display detail for the Watching panel."""
+    return {
+        "term": w["term"], "subject": w["subject"],
+        "course_number": w["course_number"], "section": w["section"],
+        "label": f"{w['subject']} {w['course_number']}-{w['section']}",
+        "title": w.get("title", ""), "meeting": w.get("meeting", ""),
+        "chat_id": chat_id, "owner": username,
+    }
 
 
 def as_section(e: dict) -> ClassSection:
@@ -68,18 +146,22 @@ def as_section(e: dict) -> ClassSection:
     )
 
 
+# --- pages + API (all gated + scoped to the logged-in user) ------------------
+
 @app.get("/")
+@login_required
 def index():
     return render_template("planner.html")
 
 
 @app.get("/api/terms")
+@login_required
 def api_terms():
     """Valid terms with human-readable names, scraped from the search form page."""
     global _terms_cache
     if not _terms_cache:
         try:
-            resp = requests.get(FORM_URL, timeout=TIMEOUT)
+            resp = requests.get(FORM_URL, headers=HEADERS, timeout=TIMEOUT)
             resp.raise_for_status()
             _terms_cache = [
                 {"code": code, "label": label.strip()}
@@ -91,58 +173,57 @@ def api_terms():
 
 
 @app.get("/api/watches")
+@login_required
 def api_watches():
-    return jsonify({"watches": load_watches()})
+    return jsonify({"watches": store.watches_for(current_chat_id())})
 
 
 @app.post("/api/watches/remove")
+@login_required
 def api_watches_remove():
     key = request.get_json()["key"]
-    save_watches([w for w in load_watches() if entry_key(w) != key])
+    store.remove_watch(current_chat_id(), key)
     return jsonify({"ok": True})
 
 
-def as_watch(w: dict) -> dict:
-    """A watch record. The watcher only needs the first five keys; the rest are
-    display detail for the UI's Watching panel."""
-    return {
-        "term": w["term"], "subject": w["subject"],
-        "course_number": w["course_number"], "section": w["section"],
-        "label": f"{w['subject']} {w['course_number']}-{w['section']}",
-        "title": w.get("title", ""),
-        "meeting": w.get("meeting", ""),
-    }
+@app.post("/api/watch")
+@login_required
+def api_watch():
+    cid = current_chat_id()
+    watch = watch_record(request.get_json(), cid, username_for(cid))
+    added, reason = store.add_watch(watch, cap=max_watches())
+    if not added:
+        msg = "already watching" if reason == "duplicate" else f"you're at the limit of {max_watches()} watches"
+        return jsonify({"error": msg}), 409
+    return jsonify({"ok": True})
 
 
 @app.post("/api/watch/bulk")
+@login_required
 def api_watch_bulk():
     """Add many watches at once (used by 'watch all that fit')."""
-    wanted = request.get_json()["watches"]
-    watches = load_watches()
-    existing = {entry_key(w) for w in watches}
+    cid = current_chat_id()
+    username = username_for(cid)
     added = 0
-    for w in wanted:
-        watch = as_watch(w)
-        if entry_key(watch) in existing:
-            continue
-        watches.append(watch)
-        existing.add(entry_key(watch))
-        added += 1
-    save_watches(watches)
+    for w in request.get_json()["watches"]:
+        ok, _ = store.add_watch(watch_record(w, cid, username), cap=max_watches())
+        added += 1 if ok else 0
     return jsonify({"ok": True, "added": added})
 
 
 @app.get("/api/schedule")
+@login_required
 def api_schedule():
-    return jsonify({"entries": load_schedule()})
+    return jsonify({"entries": store.load_schedule(current_chat_id())})
 
 
 @app.post("/api/schedule")
+@login_required
 def api_schedule_add():
     body = request.get_json()
     term, subject = body["term"].strip(), body["subject"].strip().upper()
     number, section = body["course_number"].strip(), body["section"].strip()
-    entries = load_schedule()
+    entries = store.load_schedule(current_chat_id())
     candidate = {"term": term, "subject": subject, "course_number": number, "section": section}
     if any(entry_key(e) == entry_key(candidate) for e in entries):
         return jsonify({"error": "already in schedule"}), 409
@@ -154,19 +235,21 @@ def api_schedule_add():
     if sec is None:
         return jsonify({"error": f"{subject} {number}-{section} not found in term {term}"}), 404
     entries.append({**candidate, **asdict(sec)})
-    save_schedule(entries)
+    store.save_schedule(current_chat_id(), entries)
     return jsonify({"ok": True})
 
 
 @app.post("/api/schedule/remove")
+@login_required
 def api_schedule_remove():
     key = request.get_json()["key"]
-    entries = [e for e in load_schedule() if entry_key(e) != key]
-    save_schedule(entries)
+    entries = [e for e in store.load_schedule(current_chat_id()) if entry_key(e) != key]
+    store.save_schedule(current_chat_id(), entries)
     return jsonify({"ok": True})
 
 
 @app.post("/api/search")
+@login_required
 def api_search():
     body = request.get_json()
     term, subject = body["term"].strip(), body["subject"].strip().upper()
@@ -177,7 +260,7 @@ def api_search():
     except Exception as e:
         return jsonify({"error": f"catalog fetch failed: {e}"}), 502
     others = [(e["course"] + "-" + e["section"], as_section(e))
-              for e in load_schedule() if entry_key(e) != exclude]
+              for e in store.load_schedule(current_chat_id()) if entry_key(e) != exclude]
     results = []
     for s in rows:
         conflicts = [name for name, sched in others if s.conflicts_with(sched)]
@@ -185,19 +268,39 @@ def api_search():
     return jsonify({"sections": results})
 
 
-@app.post("/api/watch")
-def api_watch():
-    watch = as_watch(request.get_json())
-    watches = load_watches()
-    if any(entry_key(w) == entry_key(watch) for w in watches):
-        return jsonify({"error": "already watching"}), 409
-    watches.append(watch)
-    save_watches(watches)
-    return jsonify({"ok": True})
+def _configure_auth(host: str) -> None:
+    """Set up session signing. The bot and planner must share PACKSEATS_SECRET so a
+    /ui login link minted by one verifies in the other."""
+    global _serializer
+    secret = os.environ.get("PACKSEATS_SECRET")
+    exposed = host not in ("127.0.0.1", "localhost", "::1")
+    if not secret:
+        if exposed:
+            sys.exit("PACKSEATS_SECRET must be set to expose the planner (it signs login "
+                     "links + sessions). Generate one with: openssl rand -hex 32")
+        secret = secrets.token_hex(32)  # ephemeral: fine for local single-process use
+        print("⚠️  PACKSEATS_SECRET not set — using an ephemeral key. Friend /ui logins "
+              "won't work until you set the same PACKSEATS_SECRET for the bot and planner.")
+    app.secret_key = secret
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        # Secure cookies only once we're actually served over HTTPS (behind Caddy). A plain
+        # http:// PUBLIC_URL (local testing) keeps them non-Secure so the cookie still sends.
+        SESSION_COOKIE_SECURE=os.environ.get("PACKSEATS_PUBLIC_URL", "").startswith("https://"),
+    )
+    _serializer = URLSafeTimedSerializer(secret, salt="packseats-ui-login")
 
 
 def main() -> None:
-    app.run(host="127.0.0.1", port=5050)
+    host = os.environ.get("PACKSEATS_PLANNER_HOST", "127.0.0.1")
+    port = int(os.environ.get("PACKSEATS_PLANNER_PORT", "5050"))
+    _configure_auth(host)
+    store.migrate_legacy_schedule(admin_id())
+    if host not in ("127.0.0.1", "localhost", "::1") and not os.environ.get("PACKSEATS_PUBLIC_URL"):
+        print(f"⚠️  Binding to {host} without PACKSEATS_PUBLIC_URL: serve this behind an "
+              "HTTPS reverse proxy (Caddy), don't expose plain HTTP. See SECURITY.md.")
+    app.run(host=host, port=port)
 
 
 if __name__ == "__main__":

@@ -65,6 +65,28 @@ def send(message: str, url: str | None = None, url_title: str | None = None) -> 
         print(f"[notify:stdout] {message}" + (f" [{url}]" if url else ""))
 
 
+def send_telegram(message: str, chat_id: str | int, url: str | None = None,
+                  url_title: str | None = None) -> bool:
+    """Send one message to a specific Telegram chat via the shared bot token.
+
+    Used to alert an individual bot user (fan-out in the watcher). Returns True if
+    a token was configured and a send was attempted. `url_title` is unused for
+    Telegram (kept for a common signature with the Pushover path) — the link is
+    appended to the text instead.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        print(f"[notify:telegram] no TELEGRAM_BOT_TOKEN set; would send to {chat_id}: {message}")
+        return False
+    text = f"{message}\n{url}" if url else message
+    _post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        {"chat_id": chat_id, "text": text},
+        "telegram",
+    )
+    return True
+
+
 def _post(url: str, data: dict, channel: str) -> None:
     try:
         resp = requests.post(url, data=data, timeout=TIMEOUT)

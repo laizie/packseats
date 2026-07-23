@@ -32,7 +32,16 @@ fi
 mkdir -p data
 chown -R packseats:packseats "$REPO_DIR/data" "$REPO_DIR/config" "$REPO_DIR/.env"
 
-cp deploy/packseats-watcher.service deploy/packseats-planner.service /etc/systemd/system/
+cp deploy/packseats-watcher.service deploy/packseats-planner.service \
+   deploy/packseats-bot.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now packseats-watcher packseats-planner
 systemctl --no-pager --lines=0 status packseats-watcher packseats-planner
+
+# The shared Telegram bot (let friends manage their own watches) is OPT-IN — it only
+# runs if you want it. Set TELEGRAM_BOT_TOKEN + PACKSEATS_INVITE_CODE in .env, then:
+#   systemctl enable --now packseats-bot
+echo "To enable the optional shared friends bot: set the bot env vars in .env, then"
+echo "  sudo systemctl enable --now packseats-bot   (see SECURITY.md)"
+echo "To expose the web planner to friends (Caddy + free HTTPS domain), see the"
+echo "  'web planner for friends' section of SECURITY.md (opens ports 80/443)."

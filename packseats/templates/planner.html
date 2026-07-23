@@ -73,6 +73,7 @@
   <h1>PackSeats Planner</h1>
   <span class="sub">NC State schedule fitting — public catalog only</span>
   <label>Term <select id="term" title="terms come straight from the NC State catalog"></select></label>
+  <span class="sub" id="whoami" style="margin-left:auto"></span>
 </header>
 <main>
   <section class="panel">
@@ -134,9 +135,23 @@ const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.ad
 async function api(path, body) {
   const opts = body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {};
   const r = await fetch(path, opts);
+  if (r.status === 401) {
+    document.body.innerHTML = '<div style="font:16px/1.5 system-ui;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#222">'
+      + '<h1 style="font-size:1.4rem">Session expired</h1>'
+      + '<p>Open the PackSeats bot on Telegram and send <code>/ui</code> for a fresh link.</p></div>';
+    throw new Error("session expired");
+  }
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
+}
+
+async function loadMe() {
+  try {
+    const me = await api("/api/me");
+    $("whoami").innerHTML = (me.username ? "@" + me.username : "signed in")
+      + (me.is_admin ? " (admin)" : "") + ' · <a href="/logout">log out</a>';
+  } catch (e) { /* 401 already handled by api() */ }
 }
 
 function renderGrid() {
@@ -346,6 +361,7 @@ $("replacing").onchange = () => {
   renderGrid();
 };
 
+loadMe();
 loadTerms().then(() => { refresh(); loadWatches(); });
 </script>
 </body>

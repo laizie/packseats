@@ -1,0 +1,21 @@
+# Caddy reverse proxy for the optional public planner UI.
+#
+# Caddy terminates HTTPS (automatic Let's Encrypt certificate) and forwards to the
+# Flask planner, which stays bound to localhost and is never exposed directly.
+#
+# Setup on the VM (Ubuntu):
+#   1. Get a free subdomain at https://www.duckdns.org and point it at the VM's IP.
+#   2. Open ports 80 and 443 in the Oracle security list (keep 22; do NOT open 5050).
+#   3. sudo apt install caddy
+#   4. Replace the domain below, copy this to /etc/caddy/Caddyfile, then:
+#        sudo systemctl restart caddy
+#   5. Set PACKSEATS_SECRET + PACKSEATS_PUBLIC_URL (=https://your.duckdns.org) in
+#      /opt/packseats/.env and restart the planner service.
+#
+# Everything Caddy needs for a valid cert is automatic once the domain resolves to
+# this host and 80/443 are reachable.
+
+your.duckdns.org {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:5050
+}
