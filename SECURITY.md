@@ -78,9 +78,18 @@ construction. Off by default; it only turns on when you set `PACKSEATS_SECRET` +
    public IP.
 2. **Open 80 + 443** in the Oracle security list — and *only* those plus 22. **Never open
    5050** (that's the unproxied Flask app).
-3. **Install Caddy:** `sudo apt install caddy`. Copy `deploy/Caddyfile`, replace the domain,
-   put it at `/etc/caddy/Caddyfile`, `sudo systemctl restart caddy`. Caddy fetches a
-   Let's Encrypt cert automatically once the domain resolves.
+3. **Install Caddy** (it isn't in Ubuntu's default repos — add Caddy's first):
+   ```bash
+   sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+     | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+     | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+   sudo apt update && sudo apt install -y caddy
+   ```
+   Then copy `deploy/Caddyfile`, replace the domain, put it at `/etc/caddy/Caddyfile`, and
+   `sudo systemctl restart caddy`. Caddy fetches a Let's Encrypt cert automatically once the
+   domain resolves and ports 80/443 are open.
 4. **Configure PackSeats:** in `/opt/packseats/.env` set
    `PACKSEATS_SECRET=$(openssl rand -hex 32)` (the **same** value is read by the bot and the
    planner) and `PACKSEATS_PUBLIC_URL=https://your.duckdns.org`, then

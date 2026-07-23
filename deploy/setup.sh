@@ -27,10 +27,19 @@ if [ ! -f .env ]; then
 fi
 [ -f config/watches.json ] || cp config/watches.example.json config/watches.json
 
-# only the mutable bits belong to the service user; the code stays owned by
-# whoever cloned it, so `git pull` updates keep working without sudo gymnastics
+# config/ and data/ hold BOTH tracked files (config/watches.example.json, data/.gitkeep)
+# and runtime state the service writes (watches.json, state.json, users.json, ...). Keep
+# them owned by whoever cloned the repo so `git pull` (as that user) keeps working, but
+# give the packseats group write access — setgid so new state files inherit the group.
+# (Handing the whole dirs to the service user broke the next `git pull` on tracked files.)
+CODE_OWNER=$(stat -c '%U' "$REPO_DIR")
 mkdir -p data
-chown -R packseats:packseats "$REPO_DIR/data" "$REPO_DIR/config" "$REPO_DIR/.env"
+chown -R "$CODE_OWNER:packseats" "$REPO_DIR/config" "$REPO_DIR/data"
+chmod -R g+w "$REPO_DIR/config" "$REPO_DIR/data"
+chmod g+s "$REPO_DIR/config" "$REPO_DIR/data"
+# .env is gitignored (git never touches it), so keep it owned by and readable only to the service user.
+chown packseats:packseats "$REPO_DIR/.env"
+chmod 600 "$REPO_DIR/.env"
 
 cp deploy/packseats-watcher.service deploy/packseats-planner.service \
    deploy/packseats-bot.service /etc/systemd/system/
