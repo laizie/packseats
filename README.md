@@ -14,7 +14,10 @@ Comes with a conflict-aware schedule planner for finding sections that actually 
 
 </div>
 
-<!-- Drop a planner screenshot here for the showcase: ![Planner](docs/planner.png) -->
+<div align="center">
+  <img src="docs/planner.png" alt="PackSeats planner: a weekly schedule grid with a conflict-aware course search showing which sections fit, live seat counts, and watched sections" width="900">
+  <p><em>The planner: your week on a grid, with a conflict-aware search showing which sections fit, live seat status, and one-click watches.</em></p>
+</div>
 
 ---
 
