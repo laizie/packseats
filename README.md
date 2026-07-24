@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🎒 PackSeats
+# PackSeats
 
-**Get a phone notification the *second* a seat opens in a full NC State class — instead of refreshing the course catalog for a week straight during registration.**
+**Get a phone notification the *second* a seat opens in a full NC State class, instead of refreshing the course catalog for a week straight during registration.**
 
 Ships with a conflict-aware schedule planner for finding sections that actually fit around the classes you already have.
 
@@ -30,7 +30,7 @@ PackSeats watches for you. It polls the **public** class search on a polite inte
 
 ## What it does
 
-### 🔔 Watcher — never miss the drop
+### Watcher — never miss the drop
 
 Checks each watched section every ~3 minutes (+ random jitter) and notifies **only on the transition into open**, so a seat that sits open doesn't spam you every poll. Alerts carry the course title, section, meeting days/time, and class number, plus a tap-through link to MyPack → Manage Classes:
 
@@ -40,7 +40,7 @@ CSC 316-001 — Data Structures For Computer Scientists
 MW 3:00 PM - 4:15 PM · class #1681
 ```
 
-### 🗓️ Planner — find classes that actually fit
+### Planner — find classes that actually fit
 
 A single-page Flask UI (localhost) where you:
 
@@ -49,7 +49,7 @@ A single-page Flask UI (localhost) where you:
 - **Replacing mode** — hunt for a swap for one specific class you want out of.
 - **One-click watch** — watch any section, or *"Watch all N that fit,"* and manage them in the Watching panel. It writes the same config the watcher reads.
 
-### 👥 Shared bot — bring your friends, zero setup on their end
+### Shared bot — bring your friends, zero setup on their end
 
 Host it once and friends can use it with **no VM, no tokens, no install** — they just message your Telegram bot:
 
@@ -140,7 +140,7 @@ Everything is spelled out in [`.env.example`](.env.example). Blank channels are 
 
 ---
 
-## 🏠 Self-hosting (still $0)
+## Self-hosting (still $0)
 
 To keep watching with your laptop closed, run it on a free always-on VM. The [`deploy/`](deploy) directory has a one-shot `setup.sh` plus systemd units for an **Oracle Cloud Always Free** VM (free forever). PackSeats is tiny and runs comfortably in that tier — more friends on the shared bot doesn't cost more.
 
@@ -189,7 +189,7 @@ These keep it $0, private, and unexposed. Mostly *"don't undo the safe defaults.
 
 ---
 
-## 🧭 Scope & ethics
+## Scope & ethics
 
 - **Public catalog only.** PackSeats reads only NC State's public class search. It never touches MyPack Portal, Shibboleth SSO, or Duo, and stores no credentials. The MyPack link in an alert is a convenience link for a human to tap — the code never requests it.
 - **Polite to the server.** Conservative interval, jitter, one request per course per pass, identifying `User-Agent`. Don't tighten it into hammering, especially during peak registration.
