@@ -49,7 +49,7 @@ A single-page Flask UI where I:
 - **Replacing mode** — hunt for a swap for one specific class I want out of.
 - **One-click watch** — watch any section, or *"Watch all N that fit,"* and manage them in the Watching panel.
 
-### 👥 Shared bot — friends, with zero setup on their end
+### Shared bot — friends, with zero setup on their end
 
 Hosted once, friends can use it with **no VM, no tokens, no install** — they just message the Telegram bot:
 
