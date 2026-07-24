@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎒 PackSeats
+# PackSeats
 
 **A personal tool that pings my phone the *second* a seat opens in a full NC State class — instead of refreshing the course catalog for a week straight during registration.**
 
@@ -30,7 +30,7 @@ PackSeats watches for me. It polls the **public** class search on a polite inter
 
 ## What it does
 
-### 🔔 Watcher — never miss the drop
+### Watcher — never miss the drop
 
 Checks each watched section every ~3 minutes (+ random jitter) and notifies **only on the transition into open**, so a seat that sits open doesn't spam every poll. Alerts carry the course title, section, meeting days/time, and class number, plus a tap-through link to MyPack → Manage Classes:
 
@@ -40,7 +40,7 @@ CSC 316-001 — Data Structures For Computer Scientists
 MW 3:00 PM - 4:15 PM · class #1681
 ```
 
-### 🗓️ Planner — find classes that actually fit
+### Planner — find classes that actually fit
 
 A single-page Flask UI where I:
 
