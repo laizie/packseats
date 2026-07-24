@@ -36,7 +36,7 @@ Checks each watched section every ~3 minutes (+ random jitter) and notifies **on
 
 ```
 🟢 CSC 316-001 just opened: 3/100 seats (Closed → Open)
-CSC 316-001 — Data Structures For Computer Scientists
+CSC 316-001 · Data Structures For Computer Scientists
 MW 3:00 PM - 4:15 PM · class #1681
 ```
 
@@ -57,7 +57,7 @@ Hosted once, friends can use it with **no VM, no tokens, no install**. They just
 Friend →  /start <invite-code>
 Bot    →  You're in! 🎉  (try /watch)
 Friend →  /watch 2268 CSC 316 001
-Bot    →  ✅ Watching CSC 316-001 — Data Structures (Closed 0/100). I'll ping you.
+Bot    →  ✅ Watching CSC 316-001, Data Structures (Closed 0/100). I'll ping you.
 ```
 
 Their watches flow into the same store the watcher already polls, and a seat alert **fans out to everyone** watching that section. Friends can even open the full web planner (`/ui` → a one-time passwordless login link). It's opt-in, invite-gated, and revocable.
