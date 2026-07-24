@@ -1,26 +1,38 @@
-# PackSeats
+<div align="center">
 
-Get a phone notification the moment a seat opens in a full NC State class — so you don't
-have to sit refreshing the course catalog during registration. Comes with a local
-schedule-planner UI for finding sections that fit around your existing classes.
+# 🎒 PackSeats
 
-PackSeats polls the **public** NC State class search
-(`webappprd.acs.ncsu.edu/php/coursecat/`), parses seat availability, and fires a
-notification the instant a watched section flips from full to open. No login, no MyPack,
-no SSO — public catalog only.
+**Get a phone notification the *second* a seat opens in a full NC State class — instead of refreshing the course catalog for a week straight during registration.**
 
-> **Unofficial.** Not affiliated with, endorsed by, or supported by NC State University.
-> It reads only the public catalog, stores no credentials, and is shared as-is under the
-> [MIT license](LICENSE). Please run it responsibly — see [SECURITY.md](SECURITY.md).
+Ships with a conflict-aware schedule planner for finding sections that actually fit around the classes you already have.
 
-<!-- Add a screenshot of the planner here once you have one: ![Planner](docs/planner.png) -->
+[![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-single--page%20UI-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Hosting](https://img.shields.io/badge/hosting-%240%20always--free-brightgreen)](#-self-hosting-still-0)
+[![Data source](https://img.shields.io/badge/data-public%20catalog%20only-blue)](#-scope--ethics)
+
+</div>
+
+<!-- Drop a planner screenshot here for the showcase: ![Planner](docs/planner.png) -->
+
+---
+
+## The problem
+
+At NC State, the class you need is full, so you camp on the course catalog hitting refresh, hoping to catch the one moment someone drops it before the next person does. It's tedious, you lose either way, and it happens every single registration cycle.
+
+PackSeats watches for you. It polls the **public** class search on a polite interval, notices the instant a watched section flips from *full* to *open*, and pushes a notification straight to your phone — with a tap-through link to go grab the seat. No login, no MyPack, no SSO. Public catalog only.
+
+> **Unofficial.** Not affiliated with, endorsed by, or supported by NC State University. It reads only the public catalog, stores no credentials, and is shared as-is under the [MIT license](LICENSE).
+
+---
 
 ## What it does
 
-**Watcher** — checks each watched section every ~3 min (+ jitter) and notifies only on a
-*transition* into open, so a seat that sits open doesn't spam you. Alerts carry the course
-title, section, meeting days/time, and class number, plus a tap-through link to
-MyPack → Manage Classes:
+### 🔔 Watcher — never miss the drop
+
+Checks each watched section every ~3 minutes (+ random jitter) and notifies **only on the transition into open**, so a seat that sits open doesn't spam you every poll. Alerts carry the course title, section, meeting days/time, and class number, plus a tap-through link to MyPack → Manage Classes:
 
 ```
 🟢 CSC 316-001 just opened: 3/100 seats (Closed → Open)
@@ -28,20 +40,71 @@ CSC 316-001 — Data Structures For Computer Scientists
 MW 3:00 PM - 4:15 PM · class #1681
 ```
 
-**Planner UI** — a single Flask page (localhost) where you:
+### 🗓️ Planner — find classes that actually fit
 
-- enter the sections you're enrolled in; meeting times are fetched from the catalog
-  automatically and drawn on a Mon–Fri week grid
-- search any course and see which sections **fit** vs. **conflict** with your schedule
-  (conflicts are named), with live seat status on each
-- use **Replacing** mode to hunt for a swap for one specific class
-- **Watch** any section, or **Watch all N that fit**, and manage/remove watches in the
-  Watching panel — it writes the same config the watcher reads
+A single-page Flask UI (localhost) where you:
 
-The watcher and planner share one fetch/parse core (`packseats/catalog.py`) and talk to
-each other only through `config/watches.json` — no server, no database.
+- **Enter what you're enrolled in** — meeting times are fetched from the catalog automatically and drawn on a Mon–Fri week grid.
+- **Search any course** and instantly see which sections **fit** vs. **conflict** with your schedule (conflicts are named), each with live seat status.
+- **Replacing mode** — hunt for a swap for one specific class you want out of.
+- **One-click watch** — watch any section, or *"Watch all N that fit,"* and manage them in the Watching panel. It writes the same config the watcher reads.
 
-## Quickstart (local)
+### 👥 Shared bot — bring your friends, zero setup on their end
+
+Host it once and friends can use it with **no VM, no tokens, no install** — they just message your Telegram bot:
+
+```
+Friend →  /start <your-invite-code>
+Bot    →  You're in! 🎉  (try /watch)
+Friend →  /watch 2268 CSC 316 001
+Bot    →  ✅ Watching CSC 316-001 — Data Structures (Closed 0/100). I'll ping you.
+```
+
+Their watches flow into the same store the watcher already polls, and a seat alert **fans out to everyone** watching that section. Friends can even open the full web planner (`/ui` → a one-time passwordless login link). It's opt-in, invite-gated, and revocable (`/kick`).
+
+---
+
+## Architecture
+
+Four entry points, one shared core, no server-to-server calls — the components integrate purely through a lock-guarded JSON file on disk. No database.
+
+```mermaid
+flowchart TD
+    subgraph inputs [Ways to add a watch]
+        CLI[check.py<br/>one-shot CLI]
+        UI[planner.py<br/>Flask web UI]
+        BOT[bot.py<br/>Telegram bot]
+    end
+
+    UI -->|store.py<br/>atomic + flock| W[(config/watches.json)]
+    BOT -->|store.py<br/>atomic + flock| W
+
+    CORE[catalog.py<br/>fetch + parse core] --- CLI
+    CORE --- UI
+    CORE --- BOT
+
+    W --> WATCHER[watcher.py<br/>polling loop]
+    WATCHER -->|reads/writes| STATE[(data/state.json<br/>last-seen seats)]
+    WATCHER --> CORE
+    WATCHER -->|transition: full → open| NOTIFY[notify.py]
+    NOTIFY --> TG[Telegram]
+    NOTIFY --> PO[Pushover]
+```
+
+**Why it's built this way:**
+
+| Decision | Why it matters |
+| --- | --- |
+| **One fetch/parse core** (`catalog.py`) | The CLI, planner, bot, and watcher all share the exact same seat/meeting-time parsing — reverse-engineered from the catalog's JSON-wrapped HTML response. One place to get right. |
+| **Edge-triggered alerts** | Notify on the *transition* full→open, not on every poll while a seat sits open. State lives in `data/state.json`. No spam. |
+| **Politeness by design** | Conservative interval, random jitter, an identifying `User-Agent`, and **one request per course per pass** even when several of its sections are watched — the catalog has no section-level query param, so sections are deduped to their course. |
+| **JSON as the integration point** | The UI/bot write and the watcher reads the same `config/watches.json`. All writes go through `store.py` (atomic temp-file rename + `flock`) so concurrent bot + planner edits never corrupt it. No DB to run. |
+| **Resilient loop** | A single failed fetch logs and continues. One bad request — or one malformed bot message — never crashes the watcher. |
+| **Passwordless web auth** | Friends log in via a short-lived, signed token link (no accounts, no passwords to phish). Every route is authenticated and scoped to the caller's chat-id; `/kick` revokes access on the next request. |
+
+---
+
+## Quickstart
 
 Requires Python 3.8+.
 
@@ -62,84 +125,50 @@ cp .env.example .env          # then add a notification token — see below
 .venv/bin/python -m packseats.watcher --loop
 ```
 
-Add the sections you care about through the planner UI (it writes `config/watches.json`),
-then leave the watcher running.
+Add the sections you care about through the planner UI (it writes `config/watches.json`), then leave the watcher running.
 
-Term codes: `2` + two-digit year + `1` Spring / `6` Summer 1 / `7` Summer 2 / `8` Fall.
-So `2268` = Fall 2026. (The planner's dropdown does this for you.)
+**Term codes:** `2` + two-digit year + `1` Spring / `6` Summer 1 / `7` Summer 2 / `8` Fall. So `2268` = Fall 2026. (The planner's dropdown does this for you.)
 
-## Notifications
+### Notifications
 
 You only need one channel. If none is configured, alerts print to stdout.
 
-- **Telegram (recommended)** — free, ~2 minutes: message [@BotFather](https://t.me/BotFather),
-  `/newbot`, copy the token; message your bot once, then read your chat id from
-  `https://api.telegram.org/bot<TOKEN>/getUpdates`. Put both in `.env`.
-- **Pushover (optional)** — a one-time paid license, but supports *emergency priority*
-  that re-alerts until acknowledged and bypasses Do Not Disturb.
+- **Telegram (recommended)** — free, ~2 minutes: message [@BotFather](https://t.me/BotFather), `/newbot`, copy the token; message your bot once, then read your chat id from `https://api.telegram.org/bot<TOKEN>/getUpdates`. Put both in `.env`.
+- **Pushover (optional)** — a one-time paid license, but supports *emergency priority* that re-alerts until acknowledged and bypasses Do Not Disturb.
 
-All of this is spelled out in [`.env.example`](.env.example). Blank channels are skipped.
+Everything is spelled out in [`.env.example`](.env.example). Blank channels are skipped.
 
-## Always-on hosting (optional, still $0)
+---
 
-To keep watching with your laptop closed, run it on a free always-on VM. The `deploy/`
-directory has a one-shot `setup.sh` and the two systemd units for an **Oracle Cloud Always
-Free** VM (free forever); [SECURITY.md](SECURITY.md) covers safe hosting end to end.
+## 🏠 Self-hosting (still $0)
 
-Two safety rules if you host it (full detail in [SECURITY.md](SECURITY.md)):
+To keep watching with your laptop closed, run it on a free always-on VM. The [`deploy/`](deploy) directory has a one-shot `setup.sh` plus systemd units for an **Oracle Cloud Always Free** VM (free forever). PackSeats is tiny and runs comfortably in that tier — more friends on the shared bot doesn't cost more.
 
-1. **Never expose the planner** — it has no login; keep it on localhost and reach it over
-   an SSH tunnel.
-2. **Set an Oracle budget alert** — so a charge can never surprise you.
-
-The included `scripts/vm` helper (`vm ui | logs | status | watches | update | ssh`) is the
-author's convenience wrapper for driving the VM over SSH; adapt it to your own host alias.
-
-## Share it with friends (optional shared bot)
-
-If you host PackSeats, you can let friends use it **without any setup on their end** — no
-VM, no tokens, no install. They just message your Telegram bot:
-
-```
-Friend →  /start <your-invite-code>
-Bot    →  You're in! 🎉  (try /watch)
-Friend →  /watch 2268 CSC 316 001
-Bot    →  ✅ Watching CSC 316-001 — Data Structures (Closed 0/100). I'll ping you.
-You    ←  👤 New PackSeats user joined: @friend (chat 123456789)
+```bash
+# on the VM, once
+sudo bash /opt/packseats/deploy/setup.sh    # deps + a non-login service user + systemd units
 ```
 
-Their watches go into the same `config/watches.json` the watcher already polls, and alerts
-fan out to everyone watching a section. Commands: `/watch`, `/list`, `/unwatch <n>`,
-`/help`; admin (you) also gets `/users` and `/kick <chat_id>`.
+The included `scripts/vm` helper (`vm ui | logs | status | watches | update | ssh`) is a convenience wrapper for driving the VM over SSH — adapt it to your own host alias.
 
-It's **opt-in and invite-gated** — set `TELEGRAM_BOT_TOKEN`, `PACKSEATS_INVITE_CODE`, and
-`PACKSEATS_ADMIN_CHAT_ID` in `.env`, then `systemctl enable --now packseats-bot`. The bot
-talks to Telegram outbound-only (no new open ports), stores only chat-ids + watches (no
-passwords or personal data), and caps watches per user. Full safety model in
-[SECURITY.md](SECURITY.md).
+### Safe self-hosting — the essentials
 
-### The web planner, for friends too
+These keep it $0, private, and unexposed. Mostly *"don't undo the safe defaults."*
 
-Friends can also use the full **web planner** (week-grid + fit-aware search) — they send
-`/ui` to the bot and tap a one-time login link:
+1. **Never expose the planner.** The planner UI has **no authentication by design** — anyone who reaches it can rewrite your watch list. It binds to `127.0.0.1` only; reach it remotely with an **SSH tunnel** (`ssh -L 5050:localhost:5050 <vm>`), never by opening port 5050. The app warns if you point `PACKSEATS_PLANNER_HOST` at a non-loopback address. *(The optional public web planner is the one exception — it's safe by construction: Flask stays on localhost, a **Caddy** reverse proxy fronts it with automatic HTTPS, and it refuses to bind a public interface without a signing secret set.)*
+2. **Never commit secrets.** Tokens live in `.env`, which is gitignored along with `config/watches.json` and `data/`. Verify before your first push:
+   ```bash
+   git check-ignore .env config/watches.json      # should print both
+   ```
+3. **Set an Oracle budget alert.** Console → Billing → Budgets → a $1 budget alerting near 0%. If a single cent ever accrues, you hear about it that day. Launch only an *Always Free-eligible* shape and leave the account on the Free tier.
+4. **Harden the box.** SSH key-only (disable password auth), keep port 22 as the only open ingress, run the services as the dedicated non-login `packseats` user, and deploy with a **read-only** GitHub deploy key so a compromised VM can't push to your repo.
 
-```
-Friend →  /ui
-Bot    →  🗓️ Open your planner: https://you.duckdns.org/login?token=…  (just for you, 10 min)
-```
-
-Each person logs in as themselves (no password — the link carries a signed, expiring
-token), gets their **own** schedule + watches, and everything they watch flows to the same
-watcher. It's authenticated on every route and `/kick` revokes web access instantly. The
-Flask app stays bound to localhost; a **Caddy** reverse proxy fronts it with automatic
-HTTPS on a free **DuckDNS** domain, so the only new open ports are 80/443 — still $0. Setup
-steps and the full threat model are in [SECURITY.md](SECURITY.md).
+---
 
 ## Project layout
 
 ```
 ├── README.md                    # this file
-├── SECURITY.md                  # safe self-hosting: no exposure, no charges, no leaks
 ├── LICENSE                      # MIT
 ├── packseats/
 │   ├── catalog.py               # fetch + parse core (seats, meeting times, titles)
@@ -150,23 +179,22 @@ steps and the full threat model are in [SECURITY.md](SECURITY.md).
 │   ├── store.py                 # atomic, lock-guarded JSON state (bot + planner write it)
 │   ├── planner.py               # Flask app: schedule, search, watch management
 │   └── templates/planner.html   # the single-page UI
-├── scripts/vm                   # day-to-day VM helper (author's convenience wrapper)
-├── deploy/                      # systemd units + VM setup script
+├── scripts/vm                   # day-to-day VM helper over SSH
+├── deploy/                      # systemd units + VM setup + Caddyfile
 ├── config/watches.json          # what's being watched (gitignored; example provided)
-└── data/                        # last-seen seat state + saved schedule (gitignored)
+└── data/                        # last-seen seat state + saved schedules (gitignored)
 ```
 
-## Design constraints
+**Tech:** Python 3 · `requests` + `BeautifulSoup` (the catalog returns JSON-wrapped HTML) · Flask (single-page planner) · JSON files for all state (no DB) · systemd + Oracle Cloud Always Free · optional Caddy for HTTPS.
 
-- **Public catalog only.** Never MyPack Portal, Shibboleth SSO, or Duo. The MyPack link in
-  alerts is for a human to tap — the code never requests it.
-- **Polite polling.** Conservative interval, jitter, one request per course even when
-  several of its sections are watched, and an identifying `User-Agent`.
-- **Resilient.** A failed fetch logs and continues; one bad request never crashes the
-  watcher.
-- **No secrets in the repo.** Tokens live in `.env` (gitignored).
+---
+
+## 🧭 Scope & ethics
+
+- **Public catalog only.** PackSeats reads only NC State's public class search. It never touches MyPack Portal, Shibboleth SSO, or Duo, and stores no credentials. The MyPack link in an alert is a convenience link for a human to tap — the code never requests it.
+- **Polite to the server.** Conservative interval, jitter, one request per course per pass, identifying `User-Agent`. Don't tighten it into hammering, especially during peak registration.
+- **Unofficial and personal.** Shared as-is; no affiliation with NC State.
 
 ## License
 
-[MIT](LICENSE) — use it, fork it, adapt it. Just keep it public-catalog-only and be kind
-to the servers.
+[MIT](LICENSE) — use it, fork it, adapt it. Just keep it public-catalog-only and be kind to the servers.

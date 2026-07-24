@@ -51,6 +51,6 @@ systemctl --no-pager --lines=0 status packseats-watcher packseats-planner
 # runs if you want it. Set TELEGRAM_BOT_TOKEN + PACKSEATS_INVITE_CODE in .env, then:
 #   systemctl enable --now packseats-bot
 echo "To enable the optional shared friends bot: set the bot env vars in .env, then"
-echo "  sudo systemctl enable --now packseats-bot   (see SECURITY.md)"
+echo "  sudo systemctl enable --now packseats-bot   (see the README)"
 echo "To expose the web planner to friends (Caddy + free HTTPS domain), see the"
-echo "  'web planner for friends' section of SECURITY.md (opens ports 80/443)."
+echo "  self-hosting section of the README (opens ports 80/443)."

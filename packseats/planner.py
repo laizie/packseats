@@ -351,7 +351,7 @@ def main() -> None:
     store.migrate_legacy_schedule(admin_id())
     if host not in ("127.0.0.1", "localhost", "::1") and not os.environ.get("PACKSEATS_PUBLIC_URL"):
         print(f"⚠️  Binding to {host} without PACKSEATS_PUBLIC_URL: serve this behind an "
-              "HTTPS reverse proxy (Caddy), don't expose plain HTTP. See SECURITY.md.")
+              "HTTPS reverse proxy (Caddy), don't expose plain HTTP. See the README.")
     app.run(host=host, port=port)
 
 

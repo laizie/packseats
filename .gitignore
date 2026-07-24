@@ -6,10 +6,9 @@ data/*
 config/watches.json
 .env
 
-# Markdown docs — only README + SECURITY are public; the rest stay local
+# Markdown docs — only README is public; the rest stay local
 *.md
 !README.md
-!SECURITY.md
 
 # Python
 .venv/
