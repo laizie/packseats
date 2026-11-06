@@ -460,10 +460,10 @@ async function loadTerms() {
   const sel = $("term");
   try {
     const { terms } = await api("/api/terms");
-    for (const t of terms) sel.add(new Option(`${t.label} — ${t.code}`, t.code));
+    for (const t of terms) sel.add(new Option(`${t.label} — ${t.code}`, t.code, t.selected, t.selected));
   } catch (e) {
-    sel.add(new Option("2268 — 2026 Fall Term", "2268"));
-    toast("Couldn't load term list from the catalog; defaulting to Fall 2026");
+    sel.add(new Option("2027 Spring Term — 2271", "2271"));
+    toast("Couldn't load term list from the catalog; defaulting to Spring 2027");
   }
 }
 

@@ -171,9 +171,11 @@ def api_terms():
         try:
             resp = requests.get(FORM_URL, headers=HEADERS, timeout=TIMEOUT)
             resp.raise_for_status()
+            # The catalog lists upcoming summer terms first but marks the current
+            # registration term `selected`; pass that through so the UI defaults to it.
             _terms_cache = [
-                {"code": code, "label": label.strip()}
-                for code, label in re.findall(r'<option value="(2\d{3})"[^>]*>([^<]+)</option>', resp.text)
+                {"code": code, "label": label.strip(), "selected": "selected" in attrs}
+                for code, attrs, label in re.findall(r'<option value="(2\d{3})"([^>]*)>([^<]+)</option>', resp.text)
             ]
         except Exception as e:
             return jsonify({"error": f"could not load terms: {e}"}), 502

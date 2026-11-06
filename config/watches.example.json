@@ -1,14 +1,14 @@
 {
   "watches": [
     {
-      "term": "2261",
+      "term": "2271",
       "subject": "CSC",
       "course_number": "316",
       "section": "001",
       "label": "Data Structures — Lec 001"
     },
     {
-      "term": "2261",
+      "term": "2271",
       "subject": "MA",
       "course_number": "242",
       "section": "003",

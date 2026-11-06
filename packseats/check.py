@@ -1,6 +1,6 @@
 """Phase 1 one-shot: print current seat availability for a course (optionally one section).
 
-Usage: python -m packseats.check 2268 HESF 101 --section 001
+Usage: python -m packseats.check 2271 HESF 101 --section 001
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from .catalog import search
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("term", help="term code, e.g. 2268 = Fall 2026")
+    ap.add_argument("term", help="term code, e.g. 2271 = Spring 2027")
     ap.add_argument("subject", help="subject code, e.g. HESF")
     ap.add_argument("course", help="course number, e.g. 101")
     ap.add_argument("--section", help="only show this section, e.g. 001")

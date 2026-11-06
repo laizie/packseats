@@ -59,7 +59,7 @@ Hosted once, friends can use it with **no VM, no tokens, no install**. They just
 ```
 Friend →  /start <invite-code>
 Bot    →  You're in! 🎉  (try /watch)
-Friend →  /watch 2268 CSC 316 001
+Friend →  /watch 2271 CSC 316 001
 Bot    →  ✅ Watching CSC 316-001, Data Structures (Closed 0/100). I'll ping you.
 ```
 

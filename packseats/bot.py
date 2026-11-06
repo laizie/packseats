@@ -41,8 +41,8 @@ SECTION_RE = re.compile(r"^[A-Za-z0-9]{1,4}$")
 HELP = (
     "PackSeats bot — I ping you the moment a full NC State section opens up.\n\n"
     "/watch <term> <subject> <number> <section>\n"
-    "    e.g. /watch 2268 CSC 316 001\n"
-    "    (term = 2 + year + 1 Spring / 6 Su1 / 7 Su2 / 8 Fall, so 2268 = Fall 2026)\n"
+    "    e.g. /watch 2271 CSC 316 001\n"
+    "    (term = 2 + year + 1 Spring / 6 Su1 / 7 Su2 / 8 Fall, so 2271 = Spring 2027)\n"
     "/list — your current watches\n"
     "/unwatch <n> — stop watching item n from /list\n"
     "/ui — open the web planner (schedule grid + fit-aware search)\n"
@@ -152,7 +152,7 @@ def cmd_start(chat_id: int, args: list[str], msg_from: dict) -> None:
 
 def cmd_watch(chat_id: int, args: list[str], users: dict) -> None:
     if len(args) != 4:
-        reply(chat_id, "Usage: /watch <term> <subject> <number> <section>\ne.g. /watch 2268 CSC 316 001")
+        reply(chat_id, "Usage: /watch <term> <subject> <number> <section>\ne.g. /watch 2271 CSC 316 001")
         return
     term, subject, number, section = args
     subject = subject.upper()
@@ -160,7 +160,7 @@ def cmd_watch(chat_id: int, args: list[str], users: dict) -> None:
     section = section.zfill(3) if section.isdigit() else section.upper()
     if not (TERM_RE.match(term) and SUBJECT_RE.match(subject)
             and NUMBER_RE.match(number) and SECTION_RE.match(section)):
-        reply(chat_id, "That doesn't look right. Example: /watch 2268 CSC 316 001")
+        reply(chat_id, "That doesn't look right. Example: /watch 2271 CSC 316 001")
         return
 
     mine = user_watches(store.load_watches(), chat_id)
@@ -201,7 +201,7 @@ def cmd_watch(chat_id: int, args: list[str], users: dict) -> None:
 def cmd_list(chat_id: int) -> None:
     mine = user_watches(store.load_watches(), chat_id)
     if not mine:
-        reply(chat_id, "You're not watching anything yet. Add one with /watch 2268 CSC 316 001")
+        reply(chat_id, "You're not watching anything yet. Add one with /watch 2271 CSC 316 001")
         return
     lines = [f"{i}. {w['label']} — {w.get('title', '')}".rstrip(" —") for i, w in enumerate(mine, 1)]
     reply(chat_id, "Your watches:\n" + "\n".join(lines) + "\n\nStop one with /unwatch <n>.")
